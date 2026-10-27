@@ -2,6 +2,9 @@ import { credentialRef } from '@deepseek-ai/dsh-credentials'
 import { WebError } from '@deepseek-ai/dsh-web'
 import z from '@deepseek-ai/schemastery'
 
+export const name = 'dsh-websearch'
+export const inject = ['web', 'settings']
+
 export const EXA_SEARCH_URL = 'https://api.exa.ai/search'
 export const INTERNAL_PROVIDER_ID = 'internal'
 
@@ -185,6 +188,9 @@ function text(value) {
 }
 
 export function apply(ctx, config = {}) {
+  ctx.inject(['settings'], child => {
+    child.effect(() => child.settings.configure({ auto: true }, ctx.fiber))
+  })
   const providersConfig = (config.providers ?? []).map((provider, index) => {
     const id = /^[A-Za-z][A-Za-z0-9_-]{5,7}$/.test(provider.id ?? '') ? provider.id : `h-${String(index).padStart(4, '0')}`
     return {
