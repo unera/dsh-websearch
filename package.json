@@ -1,0 +1,21 @@
+{
+  "name": "@dr-co/dsh-websearch",
+  "version": "0.1.0",
+  "description": "Configurable web search provider aggregator for DeepSeek Harness",
+  "type": "module",
+  "main": "./index.mjs",
+  "exports": {
+    ".": "./index.mjs",
+    "./package.json": "./package.json"
+  },
+  "files": ["index.mjs", "cordis.patch.yml", "README.md", "LICENSE"],
+  "license": "MIT",
+  "engines": { "node": ">=22" },
+  "scripts": { "test": "node --test test/*.test.mjs" },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.0.2 || 4.0.5",
+    "@deepseek-ai/dsh-credentials": "^0.2.1-rc.1 || ^0.2.1-rc.2 || ^0.2.1-rc.3",
+    "@deepseek-ai/dsh-web": "^0.2.1-rc.1 || ^0.2.1-rc.2 || ^0.2.1-rc.3"
+  },
+  "dsh": { "bundle": { "patch": "./cordis.patch.yml" } }
+}
