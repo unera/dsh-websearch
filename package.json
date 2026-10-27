@@ -8,7 +8,7 @@
     ".": "./index.mjs",
     "./package.json": "./package.json"
   },
-  "files": ["index.mjs", "cordis.patch.yml", "README.md", "LICENSE"],
+  "files": ["index.mjs", "client.js", "cordis.patch.yml", "README.md", "LICENSE"],
   "license": "MIT",
   "engines": { "node": ">=22" },
   "scripts": { "test": "node --test test/*.test.mjs" },
@@ -19,5 +19,11 @@
     "@deepseek-ai/dsh-web": "0.2.1-rc.4",
     "@deepseek-ai/schemastery": "~3.18.5"
   },
-  "dsh": { "bundle": { "patch": "./cordis.patch.yml" } }
+  "dsh": {
+    "bundle": { "patch": "./cordis.patch.yml" },
+    "client": {
+      "inject": ["@deepseek-ai/dsh-client-locale", "@deepseek-ai/dsh-client-ui-settings", "@deepseek-ai/dsh-client-ui-slots"],
+      "platform": "web"
+    }
+  }
 }
