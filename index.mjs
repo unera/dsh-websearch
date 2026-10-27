@@ -208,4 +208,4 @@ export function apply(ctx, config = {}) {
   })
 }
 
-export default apply
+export default { name, inject, Config, apply }
