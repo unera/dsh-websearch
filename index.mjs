@@ -11,10 +11,10 @@ export const INTERNAL_PROVIDER_ID = 'internal'
 const ProviderConfigSchema = z.object({
   id: z.string().default('h-new00').hidden().disabled(),
   type: z.string().default('exa').hidden().disabled(),
-  desc: z.string().default('').volatile(),
-  apiKey: z.string().role('secret').default('').volatile(),
+  desc: z.string().default(''),
+  apiKey: z.string().role('secret').default(''),
   credentialRef: z.string().role('credential-ref').default('').hidden().disabled(),
-  enabled: z.boolean().default(true).volatile(),
+  enabled: z.boolean().default(true),
   endpoints: z.object({ search: z.string().default('').hidden().disabled() }).default({}).hidden().disabled(),
   throttle: z.object({
     requests: z.number().step(1).min(1).default(20).hidden().disabled(),
