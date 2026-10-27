@@ -34,6 +34,11 @@ var import_jsx_runtime = require("react/jsx-runtime");
 var NS = "settings.webSearch";
 var SECTION_ID = "websearch";
 var NS_HOST = "dsh-websearch";
+var EXA_ICON = "data:image/svg+xml;utf8," + encodeURIComponent(
+  '<svg width="107" height="129" viewBox="0 0 107 129" fill="none" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" clip-rule="evenodd" d="M106.417 9.30741C106.417 9.57392 106.324 9.83227 106.155 10.0388L61.5395 64.5L106.155 118.96C106.324 119.166 106.417 119.425 106.417 119.691V127.843C106.417 128.482 105.897 129 105.255 129H1.16175C0.520132 129 0 128.482 0 127.843V1.15695C0 0.517982 0.520131 0 1.16174 0H105.255C105.897 0 106.417 0.517984 106.417 1.15695V9.30741ZM19.0364 116.382H87.6921L53.363 74.4795L19.0364 116.382ZM12.6699 104.192L40.1426 70.6585H12.6699V104.192ZM12.6699 58.0409H39.8964L12.6699 24.8064V58.0409ZM53.363 54.5193L87.6921 12.6176H19.0364L53.363 54.5193Z" fill="#0143D9"/></svg>'
+);
+var TYPE_LABELS = { exa: "Exa" };
+var typeLabel = (type) => TYPE_LABELS[type] ?? String(type ?? "unknown");
 var CSS = `
 .dws-field {
   background: transparent; border: 1px solid rgba(127,127,127,.35); border-radius: 6px;
@@ -116,13 +121,6 @@ function WebSearchPage(props) {
       setBusy(false);
     }
   };
-  const editDescription = (index, value) => {
-    setDraft(draft.map((provider, at) => at === index ? { ...provider, desc: value } : provider));
-  };
-  const commitDescription = () => {
-    if (JSON.stringify(draft) === JSON.stringify(providersOf(snapshot.value))) return;
-    commit(draft);
-  };
   const move = (index, delta) => {
     const target = index + delta;
     if (target < 0 || target >= draft.length) return;
@@ -131,7 +129,6 @@ function WebSearchPage(props) {
     commit(next);
   };
   const remove = (index) => commit(draft.filter((_, at) => at !== index));
-  const toggle = (index) => commit(draft.map((provider, at) => at === index ? { ...provider, enabled: provider.enabled !== true } : provider));
   const canAdd = !locked && entry.apiKey.trim() !== "";
   const add = async () => {
     const apiKey = entry.apiKey.trim();
@@ -184,30 +181,21 @@ function WebSearchPage(props) {
       ] })
     ] }),
     draft.length > 0 && (0, import_jsx_runtime.jsx)("ul", { style: styles.list, children: draft.map((provider, index) => {
+      const on = provider.enabled === true;
       const hasKey = keySet[String(index)] === true || String(provider.apiKey ?? "").trim() !== "";
       return (0, import_jsx_runtime.jsxs)("li", { style: styles.item, children: [
-        (0, import_jsx_runtime.jsx)("input", {
-          type: "checkbox",
-          checked: provider.enabled === true,
-          disabled: locked || !hasKey,
-          title: hasKey ? "Enabled" : "Store an API key first",
-          onChange: () => toggle(index)
+        (0, import_jsx_runtime.jsx)("img", {
+          src: EXA_ICON,
+          alt: typeLabel(provider.type),
+          width: 14,
+          height: 17,
+          style: { flex: "0 0 auto", opacity: on ? 1 : 0.35 }
         }),
-        (0, import_jsx_runtime.jsx)("textarea", {
-          className: "dws-field dws-one-line",
-          rows: 1,
-          value: provider.desc ?? "",
-          placeholder: "Description (optional)",
-          spellCheck: false,
-          autoComplete: "off",
-          disabled: locked,
-          onChange: (e) => editDescription(index, e.target.value),
-          onBlur: commitDescription
-        }),
-        (0, import_jsx_runtime.jsxs)("span", { style: styles.meta, children: [provider.id ?? "\u2014", hasKey ? "" : " \xB7 no key"] }),
+        (0, import_jsx_runtime.jsx)("span", { style: styles.kind, title: on ? "" : "Disabled", children: typeLabel(provider.type) }),
+        (0, import_jsx_runtime.jsx)("span", { style: styles.desc, title: hasKey ? "" : "No API key stored", children: provider.desc || "\u2014" }),
+        (0, import_jsx_runtime.jsx)("button", { className: "dws-icon", disabled: locked, onClick: () => remove(index), title: "Delete", children: "\xD7" }),
         (0, import_jsx_runtime.jsx)("button", { className: "dws-icon", disabled: locked || index === 0, onClick: () => move(index, -1), title: "Move up", children: "\u2191" }),
-        (0, import_jsx_runtime.jsx)("button", { className: "dws-icon", disabled: locked || index === draft.length - 1, onClick: () => move(index, 1), title: "Move down", children: "\u2193" }),
-        (0, import_jsx_runtime.jsx)("button", { className: "dws-icon", disabled: locked, onClick: () => remove(index), title: "Delete", children: "\xD7" })
+        (0, import_jsx_runtime.jsx)("button", { className: "dws-icon", disabled: locked || index === draft.length - 1, onClick: () => move(index, 1), title: "Move down", children: "\u2193" })
       ] });
     }) }),
     error !== "" && (0, import_jsx_runtime.jsx)("p", { style: styles.error, children: error })
@@ -225,8 +213,17 @@ var styles = {
     flexDirection: "column",
     gap: 8
   },
-  list: { display: "flex", flexDirection: "column", gap: 6, listStyle: "none", margin: 0, padding: 0 },
-  item: { alignItems: "center", display: "flex", gap: 8 },
+  list: { display: "flex", flexDirection: "column", gap: 4, listStyle: "none", margin: 0, padding: 0 },
+  item: { alignItems: "center", display: "flex", gap: 8, padding: "2px 0" },
+  kind: { flex: "0 0 auto", fontSize: 13, fontWeight: 500, whiteSpace: "nowrap" },
+  desc: {
+    flex: "1 1 auto",
+    fontSize: 13,
+    opacity: 0.75,
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap"
+  },
   row: { alignItems: "center", display: "flex", gap: 8 },
   button: {
     padding: "7px 12px",
@@ -238,7 +235,6 @@ var styles = {
     whiteSpace: "nowrap"
   },
   enabled: { whiteSpace: "nowrap", fontSize: 13 },
-  meta: { opacity: 0.5, fontSize: 12, whiteSpace: "nowrap" },
   error: { margin: 0, color: "#f66" }
 };
 function apply(ctx) {
