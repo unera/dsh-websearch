@@ -15,7 +15,8 @@
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.2 || 4.0.5",
     "@deepseek-ai/dsh-credentials": "^0.2.1-rc.1 || ^0.2.1-rc.2 || ^0.2.1-rc.3",
-    "@deepseek-ai/dsh-web": "^0.2.1-rc.1 || ^0.2.1-rc.2 || ^0.2.1-rc.3"
+    "@deepseek-ai/dsh-web": "^0.2.1-rc.1 || ^0.2.1-rc.2 || ^0.2.1-rc.3",
+    "@deepseek-ai/schemastery": "^3.18.5"
   },
   "dsh": { "bundle": { "patch": "./cordis.patch.yml" } }
 }

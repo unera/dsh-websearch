@@ -1,8 +1,29 @@
 import { credentialRef } from '@deepseek-ai/dsh-credentials'
 import { WebError } from '@deepseek-ai/dsh-web'
+import z from '@deepseek-ai/schemastery'
 
 export const EXA_SEARCH_URL = 'https://api.exa.ai/search'
 export const INTERNAL_PROVIDER_ID = 'internal'
+
+const ProviderConfigSchema = z.object({
+  id: z.string().default('h-new00').hidden().disabled(),
+  type: z.string().default('exa').hidden().disabled(),
+  desc: z.string().default('').volatile(),
+  apiKey: z.string().role('secret').default('').volatile(),
+  credentialRef: z.string().role('credential-ref').default('').hidden().disabled(),
+  enabled: z.boolean().default(true).volatile(),
+  endpoints: z.object({ search: z.string().default('').hidden().disabled() }).default({}).hidden().disabled(),
+  throttle: z.object({
+    requests: z.number().step(1).min(1).default(20).hidden().disabled(),
+    windowSeconds: z.number().step(1).min(1).default(60).hidden().disabled(),
+    maxConcurrent: z.number().step(1).min(1).default(2).hidden().disabled(),
+  }).default({}).hidden().disabled(),
+  config: z.dict(z.any()).default({}).hidden().disabled(),
+})
+
+export const Config = z.object({
+  providers: z.array(ProviderConfigSchema).default([]),
+})
 
 export function normalizeProviderId(value) {
   const id = String(value ?? '')
@@ -43,7 +64,9 @@ export function createExaProvider(config, credentials, { fetchFn = fetch } = {})
       const query = String(request.query ?? '').trim()
       if (!query) return { sources: [], truncated: false }
       const resolved = await credentials?.resolve(ref)
-      const apiKey = resolved?.value?.trim() ?? process.env[config.credentialRef ?? '']?.trim()
+      const apiKey = config.apiKey?.trim()
+        || resolved?.value?.trim()
+        || process.env[config.credentialRef ?? '']?.trim()
       if (!apiKey) {
         throw new WebError(`Exa search has no API key for "${config.credentialRef ?? makeCredentialRef('exa', id)}"`, 'WEB_PROVIDER_CREDENTIAL_MISSING')
       }
@@ -162,9 +185,18 @@ function text(value) {
 }
 
 export function apply(ctx, config = {}) {
+  const providersConfig = (config.providers ?? []).map((provider, index) => {
+    const id = /^[A-Za-z][A-Za-z0-9_-]{5,7}$/.test(provider.id ?? '') ? provider.id : `h-${String(index).padStart(4, '0')}`
+    return {
+      ...provider,
+      id,
+      type: 'exa',
+      credentialRef: provider.credentialRef || makeCredentialRef('exa', id),
+    }
+  })
   ctx.inject(['web'], scoped => {
     const credentials = scoped.get('credentials')
-    const providers = (config.providers ?? []).filter(provider => provider.type === 'exa').map(provider => createExaProvider(provider, credentials))
+    const providers = providersConfig.map(provider => createExaProvider(provider, credentials))
     if (providers.length === 0) return undefined
     return scoped.web.registerSearchProvider(createSearchAggregator(providers))
   })
