@@ -187,11 +187,17 @@ function text(value) {
   return undefined
 }
 
+/** Read the provider list from a `volatile()` field or a plain array. */
+export function unwrapProviders(value) {
+  const plain = typeof value?.get === 'function' ? value.get() : value
+  return Array.isArray(plain) ? plain : []
+}
+
 export function apply(ctx, config = {}) {
   ctx.inject(['settings'], child => {
     child.effect(() => child.settings.configure({ auto: true }, ctx.fiber))
   })
-  const providersConfig = (config.providers ?? []).map((provider, index) => {
+  const providersConfig = unwrapProviders(config.providers).map((provider, index) => {
     const id = /^[A-Za-z][A-Za-z0-9_-]{5,7}$/.test(provider.id ?? '') ? provider.id : `h-${String(index).padStart(4, '0')}`
     return {
       ...provider,

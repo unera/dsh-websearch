@@ -76,3 +76,12 @@ test('describes safe provider configuration without secret values', () => {
     available: true,
   }])
 })
+
+test('unwraps a volatile provider field and tolerates a plain array', async () => {
+  const { unwrapProviders } = await import('../index.mjs')
+  const rows = [{ id: 'h-a7K2x' }]
+  assert.deepEqual(unwrapProviders(rows), rows)
+  assert.deepEqual(unwrapProviders({ get: () => rows }), rows)
+  assert.deepEqual(unwrapProviders(undefined), [])
+  assert.deepEqual(unwrapProviders({ not: 'an array' }), [])
+})
