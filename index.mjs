@@ -25,7 +25,7 @@ const ProviderConfigSchema = z.object({
 })
 
 export const Config = z.object({
-  providers: z.array(ProviderConfigSchema).default([]),
+  providers: z.array(ProviderConfigSchema).default([]).volatile(),
 })
 
 export function normalizeProviderId(value) {
