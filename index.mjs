@@ -193,18 +193,155 @@ export function unwrapProviders(value) {
   return Array.isArray(plain) ? plain : []
 }
 
+/** Namespace this plugin's entry registers. */
+export const SETTINGS_NAMESPACE = 'dsh-websearch'
+export const ROUTE_PREFIX = '/__ws'
+
+const PROVIDER_ID = /^[A-Za-z][A-Za-z0-9_-]{5,7}$/
+/** What the page may see of one provider: never the key itself. */
+function publicProvider(provider, index) {
+  return {
+    index,
+    id: provider.id ?? '',
+    type: provider.type ?? 'exa',
+    desc: provider.desc ?? '',
+    enabled: provider.enabled !== false,
+    keySet: String(provider.apiKey ?? '').trim() !== '',
+  }
+}
+
+/**
+ * Provider CRUD for the settings page.
+ *
+ * It lives on the host because `apiKey` is a schema secret: redacted reads never
+ * carry it, so a page that rewritten the whole array would erase every stored
+ * key. Here the array is read whole (secrets included), one change is applied,
+ * and the array is written back, leaving untouched keys intact.
+ *
+ * @param settings - host settings service owning the plugin's namespace.
+ * @returns An HTTP handler for {@link ROUTE_PREFIX}.
+ */
+export function createProviderHandler(settings) {
+  const read = () => {
+    const descriptor = settings.describe().find(entry => String(entry.ns) === SETTINGS_NAMESPACE)
+    const value = descriptor?.value
+    return Array.isArray(value?.providers) ? value.providers.map(provider => ({ ...provider })) : []
+  }
+  const write = providers => settings.update(SETTINGS_NAMESPACE, { providers })
+
+  const json = (response, status, body) => {
+    const text = JSON.stringify(body)
+    response.writeHead(status, {
+      'content-type': 'application/json; charset=utf-8',
+      'cache-control': 'no-store',
+      'content-length': Buffer.byteLength(text),
+    })
+    response.end(text)
+  }
+
+  const readBody = async request => {
+    const chunks = []
+    let size = 0
+    for await (const chunk of request) {
+      size += chunk.length
+      if (size > 256 * 1024) throw new Error('request body is too large')
+      chunks.push(chunk)
+    }
+    const text = Buffer.concat(chunks).toString('utf8').trim()
+    return text === '' ? {} : JSON.parse(text)
+  }
+
+  const indexOf = (providers, raw) => {
+    const index = Number(raw)
+    if (!Number.isInteger(index) || index < 0 || index >= providers.length) {
+      throw new Error(`provider index ${JSON.stringify(raw)} is out of range`)
+    }
+    return index
+  }
+
+  return async (request, response) => {
+    try {
+      const url = new URL(request.url ?? '/', 'http://localhost')
+      const path = url.pathname.startsWith(ROUTE_PREFIX) ? url.pathname.slice(ROUTE_PREFIX.length) || '/' : url.pathname
+
+      if (request.method === 'GET' && path === '/state') {
+        const providers = read()
+        return json(response, 200, { providers: providers.map(publicProvider) })
+      }
+      if (request.method !== 'POST') return json(response, 405, { error: 'method not allowed' })
+
+      const body = await readBody(request)
+      const providers = read()
+      const action = String(body.action ?? '')
+
+      if (action === 'add') {
+        const draft = body.draft ?? {}
+        const apiKey = String(draft.apiKey ?? '').trim()
+        if (apiKey === '') return json(response, 400, { error: 'an API key is required' })
+        const id = generateProviderId(providers)
+        providers.unshift({
+          id,
+          type: 'exa',
+          desc: String(draft.desc ?? '').trim(),
+          apiKey,
+          credentialRef: makeCredentialRef('exa', id),
+          enabled: draft.enabled !== false,
+        })
+      } else if (action === 'save') {
+        const index = indexOf(providers, body.index)
+        const draft = body.draft ?? {}
+        const next = { ...providers[index], desc: String(draft.desc ?? '').trim(), enabled: draft.enabled !== false }
+        const apiKey = String(draft.apiKey ?? '').trim()
+        // An empty key field means "keep the stored one", not "erase it".
+        if (apiKey !== '') next.apiKey = apiKey
+        providers[index] = next
+      } else if (action === 'delete') {
+        providers.splice(indexOf(providers, body.index), 1)
+      } else if (action === 'move') {
+        const index = indexOf(providers, body.index)
+        const target = index + Number(body.delta ?? 0)
+        if (target < 0 || target >= providers.length) return json(response, 400, { error: 'move is out of range' })
+        ;[providers[index], providers[target]] = [providers[target], providers[index]]
+      } else if (action === 'toggle') {
+        const index = indexOf(providers, body.index)
+        providers[index] = { ...providers[index], enabled: providers[index].enabled === false }
+      } else {
+        return json(response, 400, { error: `unknown action ${JSON.stringify(action)}` })
+      }
+
+      await write(providers)
+      const after = read()
+      return json(response, 200, { providers: after.map(publicProvider) })
+    } catch (error) {
+      return json(response, 400, { error: String(error?.message ?? error) })
+    }
+  }
+}
+
 export function apply(ctx, config = {}) {
   ctx.inject(['settings'], child => {
     child.effect(() => child.settings.configure({ auto: true }, ctx.fiber))
   })
-  const providersConfig = unwrapProviders(config.providers).map((provider, index) => {
-    const id = /^[A-Za-z][A-Za-z0-9_-]{5,7}$/.test(provider.id ?? '') ? provider.id : `h-${String(index).padStart(4, '0')}`
-    return {
-      ...provider,
-      id,
-      type: 'exa',
-      credentialRef: provider.credentialRef || makeCredentialRef('exa', id),
-    }
+  const providersConfig = unwrapProviders(config.providers)
+    .filter(provider => (provider.type ?? 'exa') === 'exa')
+    .map((provider, index) => {
+      const id = /^[A-Za-z][A-Za-z0-9_-]{5,7}$/.test(provider.id ?? '') ? provider.id : `h-${String(index).padStart(4, '0')}`
+      return {
+        ...provider,
+        id,
+        type: 'exa',
+        credentialRef: provider.credentialRef || makeCredentialRef('exa', id),
+      }
+    })
+  ctx.inject(['settings', 'webServer'], scoped => {
+    const settings = scoped.settings ?? scoped.get?.('settings')
+    const server = scoped.webServer ?? scoped.get?.('webServer')
+    if (typeof settings?.update !== 'function' || typeof server?.register !== 'function') return undefined
+    const handler = createProviderHandler(settings)
+    return scoped.effect(() => {
+      const unregister = server.register({ kind: 'prefix', path: ROUTE_PREFIX, handler })
+      return () => { try { unregister?.() } catch { /* already gone */ } }
+    })
   })
   ctx.inject(['web'], scoped => {
     const credentials = scoped.get('credentials')

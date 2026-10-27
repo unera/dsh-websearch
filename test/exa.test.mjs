@@ -85,3 +85,75 @@ test('unwraps a volatile provider field and tolerates a plain array', async () =
   assert.deepEqual(unwrapProviders(undefined), [])
   assert.deepEqual(unwrapProviders({ not: 'an array' }), [])
 })
+
+/** Minimal settings stand-in: the handler must never drop a stored key. */
+function fakeSettings(providers) {
+  const state = { providers: providers.map(provider => ({ ...provider })) }
+  return {
+    state,
+    describe: () => [{ ns: 'dsh-websearch', value: { providers: state.providers.map(p => ({ ...p })) } }],
+    update: async (_ns, patch) => { state.providers = patch.providers.map(p => ({ ...p })) },
+  }
+}
+
+function callHandler(handler, { method = 'POST', url = '/__ws/providers', body = {} } = {}) {
+  const response = { status: 0, payload: null, writeHead(code) { this.status = code }, end(text) { this.payload = JSON.parse(text) } }
+  const request = {
+    method,
+    url,
+    async *[Symbol.asyncIterator]() {
+      if (method === 'POST') yield Buffer.from(JSON.stringify(body))
+    },
+  }
+  return handler(request, response).then(() => response)
+}
+
+test('keeps stored keys through move, toggle and delete', async () => {
+  const { createProviderHandler } = await import('../index.mjs')
+  const settings = fakeSettings([
+    { id: 'h-aaaaa', type: 'exa', desc: 'first', apiKey: 'key-one', enabled: true },
+    { id: 'h-bbbbb', type: 'exa', desc: 'second', apiKey: 'key-two', enabled: true },
+  ])
+  const handler = createProviderHandler(settings)
+
+  const moved = await callHandler(handler, { body: { action: 'move', index: 0, delta: 1 } })
+  assert.equal(moved.status, 200)
+  assert.deepEqual(settings.state.providers.map(p => p.id), ['h-bbbbb', 'h-aaaaa'])
+  assert.deepEqual(settings.state.providers.map(p => p.apiKey), ['key-two', 'key-one'])
+
+  await callHandler(handler, { body: { action: 'toggle', index: 1 } })
+  assert.equal(settings.state.providers[1].enabled, false)
+  assert.equal(settings.state.providers[1].apiKey, 'key-one')
+
+  const deleted = await callHandler(handler, { body: { action: 'delete', index: 0 } })
+  assert.equal(deleted.payload.providers.length, 1)
+  assert.equal(settings.state.providers[0].apiKey, 'key-one')
+  assert.equal(deleted.payload.providers[0].keySet, true)
+  assert.equal(Object.hasOwn(deleted.payload.providers[0], 'apiKey'), false)
+})
+
+test('adds a provider and refuses an empty key', async () => {
+  const { createProviderHandler } = await import('../index.mjs')
+  const settings = fakeSettings([])
+  const handler = createProviderHandler(settings)
+
+  const refused = await callHandler(handler, { body: { action: 'add', draft: { desc: 'x', apiKey: '  ' } } })
+  assert.equal(refused.status, 400)
+
+  const added = await callHandler(handler, { body: { action: 'add', draft: { desc: 'Exa', apiKey: 'k-1', enabled: true } } })
+  assert.equal(added.status, 200)
+  assert.equal(settings.state.providers.length, 1)
+  assert.equal(settings.state.providers[0].apiKey, 'k-1')
+  assert.match(settings.state.providers[0].id, /^[A-Za-z][A-Za-z0-9_-]{5,7}$/)
+})
+
+test('saving without a key keeps the stored one', async () => {
+  const { createProviderHandler } = await import('../index.mjs')
+  const settings = fakeSettings([{ id: 'h-ccccc', type: 'exa', desc: 'old', apiKey: 'keep-me', enabled: true }])
+  const handler = createProviderHandler(settings)
+
+  await callHandler(handler, { body: { action: 'save', index: 0, draft: { desc: 'new', apiKey: '', enabled: false } } })
+  assert.equal(settings.state.providers[0].desc, 'new')
+  assert.equal(settings.state.providers[0].enabled, false)
+  assert.equal(settings.state.providers[0].apiKey, 'keep-me')
+})
