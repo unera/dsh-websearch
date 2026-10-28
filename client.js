@@ -87,9 +87,11 @@ function WebSearchPage() {
   const [error, setError] = (0, import_react.useState)("");
   const [loading, setLoading] = (0, import_react.useState)(true);
   const [active, setActive] = (0, import_react.useState)("");
+  const [registered, setRegistered] = (0, import_react.useState)(null);
   const apply2 = (payload) => {
     if (Array.isArray(payload?.providers)) setProviders(payload.providers);
     if (typeof payload?.searchProvider === "string") setActive(payload.searchProvider);
+    if (typeof payload?.registered === "boolean") setRegistered(payload);
   };
   const run = async (action, work) => {
     setBusy(true);
@@ -141,6 +143,10 @@ function WebSearchPage() {
       (0, import_jsx_runtime.jsx)("span", {
         style: styles.activeLabel,
         children: active === "dsh-websearch" ? "This aggregator is the active search provider." : `Active search provider: ${active === "" ? "none" : active}`
+      }),
+      active === "dsh-websearch" && registered !== null && (0, import_jsx_runtime.jsx)("span", {
+        style: registered.registered ? styles.green : styles.red,
+        children: registered.registered ? "registered" : `not registered: ${registered.reason || "unknown"}`
       }),
       active !== "dsh-websearch" && (0, import_jsx_runtime.jsx)("button", {
         style: styles.button,

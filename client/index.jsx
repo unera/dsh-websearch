@@ -76,10 +76,13 @@ export function WebSearchPage() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
   const [active, setActive] = useState('')
+  const [registered, setRegistered] = useState(null)
 
   const apply = payload => {
     if (Array.isArray(payload?.providers)) setProviders(payload.providers)
     if (typeof payload?.searchProvider === 'string') setActive(payload.searchProvider)
+    if (typeof payload?.registered === 'boolean') setRegistered(payload)
+    
   }
 
   const run = async (action, work) => {
@@ -142,6 +145,10 @@ export function WebSearchPage() {
         children: active === 'dsh-websearch'
           ? 'This aggregator is the active search provider.'
           : `Active search provider: ${active === '' ? 'none' : active}`,
+      }),
+      active === 'dsh-websearch' && registered !== null && jsx('span', {
+        style: registered.registered ? styles.green : styles.red,
+        children: registered.registered ? 'registered' : `not registered: ${registered.reason || 'unknown'}`,
       }),
       active !== 'dsh-websearch' && jsx('button', {
         style: styles.button, disabled: busy,

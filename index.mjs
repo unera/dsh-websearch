@@ -207,6 +207,9 @@ export const WEB_NAMESPACE = 'web'
  */
 export const providerStats = new Map()
 
+/** What this process actually registered with the `web` seam; the page reports it. */
+export const runtimeState = { registered: false, reason: '' }
+
 /** Counters for one provider, zeroed when it has never run. */
 export function statsOf(id) {
   return providerStats.get(id) ?? { searches: 0, errors: 0, lastSearch: 0, lastError: 0 }
@@ -310,6 +313,8 @@ export function createProviderHandler(settings) {
           providers: providers.map(publicProvider),
           searchProvider: selectedSearchProvider(),
           providerId: SEARCH_PROVIDER_ID,
+          registered: runtimeState.registered,
+          reason: runtimeState.reason,
         })
       }
       if (request.method !== 'POST') return json(response, 405, { error: 'method not allowed' })
@@ -398,9 +403,18 @@ export function apply(ctx, config = {}) {
   })
   ctx.inject(['web'], scoped => {
     const credentials = scoped.get('credentials')
-    const providers = providersConfig.map(provider => countProvider(createExaProvider(provider, credentials)))
-    if (providers.length === 0) return undefined
-    return scoped.web.registerSearchProvider(createSearchAggregator(providers))
+    const providers = providersConfig
+      .filter(provider => provider.enabled !== false)
+      .map(provider => countProvider(createExaProvider(provider, credentials)))
+    if (providers.length === 0) {
+      runtimeState.registered = false
+      runtimeState.reason = 'no enabled exa provider is configured'
+      return undefined
+    }
+    const dispose = scoped.web.registerSearchProvider(createSearchAggregator(providers))
+    runtimeState.registered = true
+    runtimeState.reason = ''
+    return () => { runtimeState.registered = false; dispose?.() }
   })
 }
 
