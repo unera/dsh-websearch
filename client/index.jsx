@@ -181,6 +181,10 @@ const CSS = `
 .dws-fields { align-items: center; display: flex; flex-wrap: wrap; gap: 8px; min-width: 0; width: 100%; }
 .dws-fields > .dws-type { flex: 0 1 140px; min-width: 110px; }
 .dws-fields > .dws-grow { flex: 1 1 150px; min-width: 0; }
+.dws-fields > .dws-model { flex: 0 1 150px; min-width: 110px; }
+/* A one-row textarea, used instead of a password input because password managers
+ * kept filling the wrong field. */
+.dws-one-line { display: block; overflow: hidden; resize: none; }
 .dws-actions { align-items: center; display: flex; flex-wrap: wrap; gap: 8px; }
 .dws-button {
   background: transparent; border: 1px solid rgba(127,127,127,.35); border-radius: 6px;
@@ -189,6 +193,29 @@ const CSS = `
 .dws-button:disabled { cursor: default; opacity: .4; }
 .dws-spin { animation: dws-spin 1s linear infinite; display: inline-block; }
 @keyframes dws-spin { from { transform: rotate(0turn); } to { transform: rotate(1turn); } }
+/* Side-by-side help plates: the left one carries the walkthrough, the right one the
+ * registration control. Plain flex, no media query — the panel decides the width. */
+.dws-plates { align-items: stretch; display: flex; flex-wrap: nowrap; gap: 8px; width: 100%; }
+.dws-plate-wide { flex: 2 1 0; min-width: 0; }
+.dws-plate-narrow { flex: 1 1 0; min-width: 0; }
+/* Icon picker: a button that opens a list, since <select> cannot render images. */
+.dws-picker { min-width: 0; position: relative; }
+.dws-picker-button { align-items: center; cursor: pointer; display: flex; gap: 6px; text-align: left; }
+.dws-picker-button:disabled { cursor: default; opacity: .6; }
+.dws-picker-value { align-items: center; display: flex; gap: 6px; overflow: hidden; }
+.dws-picker-list {
+  background: var(--dsw-alias-bg-secondary, #242424); border: 1px solid rgba(127,127,127,.45);
+  border-radius: 8px; box-shadow: 0 10px 26px rgba(0,0,0,.45); display: flex; flex-direction: column;
+  gap: 2px; left: 0; max-height: 320px; min-width: 100%; overflow-y: auto; padding: 4px;
+  position: absolute; top: calc(100% + 4px); z-index: 40;
+}
+.dws-picker-item {
+  align-items: center; background: transparent; border: 0; border-radius: 6px; color: inherit;
+  cursor: pointer; display: flex; font: inherit; font-size: 13px; gap: 8px; padding: 5px 8px;
+  text-align: left; white-space: nowrap; width: 100%;
+}
+.dws-picker-item:hover { background: rgba(127,127,127,.18); }
+.dws-picker-item[aria-selected="true"] { background: rgba(127,127,127,.26); }
 `
 
 function mountStyle() {
