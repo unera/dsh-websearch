@@ -457,7 +457,21 @@ export function WebSearchPage(props) {
               children: t(capsKey(provider.capabilities, on)),
             }),
             jsxs('span', { style: styles.actions, children: [
-              jsx('button', { className: 'dws-icon', disabled: busy, title: t('list.delete'), onClick: act({ action: 'delete', index }), children: '×' }),
+              jsx('button', {
+                className: 'dws-icon', disabled: busy, title: t('list.delete'),
+                onClick: event => {
+                  event.stopPropagation()
+                  // Removal is not undoable, so it asks first and names what it
+                  // would drop: type and id are what the row is identified by.
+                  const question = t('list.deleteConfirm')
+                    .replace('{0}', typeLabel(provider.type))
+                    .replace('{1}', provider.id ?? '—')
+                  if (typeof window !== 'undefined' && typeof window.confirm === 'function'
+                    && !window.confirm(question)) return
+                  run(() => call('/providers', { action: 'delete', index }))
+                },
+                children: '×',
+              }),
               jsx('button', { className: 'dws-icon', disabled: busy || index === 0, title: t('list.up'), onClick: act({ action: 'move', index, delta: -1 }), children: '↑' }),
               jsx('button', { className: 'dws-icon', disabled: busy || index === providers.length - 1, title: t('list.down'), onClick: act({ action: 'move', index, delta: 1 }), children: '↓' }),
             ] }),

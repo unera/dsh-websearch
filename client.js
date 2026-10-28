@@ -69,6 +69,7 @@ var en = {
   "list.up": "Move up",
   "list.down": "Move down",
   "list.delete": "Delete",
+  "list.deleteConfirm": "Delete the '{0}' provider (id {1})?",
   "list.reset": "reset",
   "error.unsupportedType": 'The host does not know the provider type "{0}" yet \u2014 restart it after installing the update',
   "error.keyRequired": "An API key is required",
@@ -124,6 +125,7 @@ var ru = {
   "list.up": "\u0412\u044B\u0448\u0435",
   "list.down": "\u041D\u0438\u0436\u0435",
   "list.delete": "\u0423\u0434\u0430\u043B\u0438\u0442\u044C",
+  "list.deleteConfirm": "\u0412\u044B \u0443\u0432\u0435\u0440\u0435\u043D\u044B, \u0447\u0442\u043E \u0445\u043E\u0442\u0438\u0442\u0435 \u0443\u0434\u0430\u043B\u0438\u0442\u044C \xAB{0}\xBB \u0441 id={1}?",
   "list.reset": "\u0441\u0431\u0440\u043E\u0441\u0438\u0442\u044C",
   "error.unsupportedType": "\u0425\u043E\u0441\u0442 \u0435\u0449\u0451 \u043D\u0435 \u0437\u043D\u0430\u0435\u0442 \u0442\u0438\u043F \xAB{0}\xBB \u2014 \u043F\u0435\u0440\u0435\u0437\u0430\u043F\u0443\u0441\u0442\u0438\u0442\u0435 \u0435\u0433\u043E \u043F\u043E\u0441\u043B\u0435 \u0443\u0441\u0442\u0430\u043D\u043E\u0432\u043A\u0438 \u043E\u0431\u043D\u043E\u0432\u043B\u0435\u043D\u0438\u044F",
   "error.keyRequired": "\u041D\u0443\u0436\u0435\u043D API-\u043A\u043B\u044E\u0447",
@@ -179,6 +181,7 @@ var zh = {
   "list.up": "\u4E0A\u79FB",
   "list.down": "\u4E0B\u79FB",
   "list.delete": "\u5220\u9664",
+  "list.deleteConfirm": "\u786E\u5B9A\u8981\u5220\u9664\u201C{0}\u201D\uFF08id {1}\uFF09\u5417\uFF1F",
   "list.reset": "\u91CD\u7F6E",
   "error.unsupportedType": "\u5BBF\u4E3B\u5C1A\u4E0D\u8BA4\u8BC6\u63D0\u4F9B\u65B9\u7C7B\u578B\u201C{0}\u201D\u2014\u2014\u5B89\u88C5\u66F4\u65B0\u540E\u8BF7\u91CD\u542F",
   "error.keyRequired": "\u9700\u8981 API \u5BC6\u94A5",
@@ -599,7 +602,18 @@ function WebSearchPage(props) {
               children: t(capsKey(provider.capabilities, on))
             }),
             (0, import_jsx_runtime.jsxs)("span", { style: styles.actions, children: [
-              (0, import_jsx_runtime.jsx)("button", { className: "dws-icon", disabled: busy, title: t("list.delete"), onClick: act({ action: "delete", index }), children: "\xD7" }),
+              (0, import_jsx_runtime.jsx)("button", {
+                className: "dws-icon",
+                disabled: busy,
+                title: t("list.delete"),
+                onClick: (event) => {
+                  event.stopPropagation();
+                  const question = t("list.deleteConfirm").replace("{0}", typeLabel(provider.type)).replace("{1}", provider.id ?? "\u2014");
+                  if (typeof window !== "undefined" && typeof window.confirm === "function" && !window.confirm(question)) return;
+                  run(() => call("/providers", { action: "delete", index }));
+                },
+                children: "\xD7"
+              }),
               (0, import_jsx_runtime.jsx)("button", { className: "dws-icon", disabled: busy || index === 0, title: t("list.up"), onClick: act({ action: "move", index, delta: -1 }), children: "\u2191" }),
               (0, import_jsx_runtime.jsx)("button", { className: "dws-icon", disabled: busy || index === providers.length - 1, title: t("list.down"), onClick: act({ action: "move", index, delta: 1 }), children: "\u2193" })
             ] })
