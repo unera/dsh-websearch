@@ -647,7 +647,9 @@ var styles = {
   under: { alignItems: "center", display: "flex", gap: 6, paddingLeft: 2 },
   id: { flex: "0 0 auto", fontFamily: "monospace", fontSize: 12, opacity: 0.75 },
   desc: { flex: "1 1 auto", fontSize: 13, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
-  actions: { display: "flex", flex: "0 0 auto", gap: 4 },
+  // Pinned right whatever stands before it: rows without a description used to
+  // pull the action buttons left, out of line with the rest.
+  actions: { display: "flex", flex: "0 0 auto", gap: 4, marginLeft: "auto" },
   counters: { flex: "0 0 auto", fontFamily: "monospace", fontSize: 12, whiteSpace: "nowrap" },
   green: { color: "#3fb950" },
   red: { color: "#f85149" },
