@@ -79,6 +79,18 @@ const capsKey = (capabilities, enabled) => {
 const iconOf = type => ICONS[type ?? 'exa'] ?? null
 
 /**
+ * One provider mark, for the picker button and its popup rows.
+ * @param type - Provider type.
+ * @param size - Square size in pixels.
+ * @returns An image element, or nothing for a type without a mark.
+ */
+const iconNode = (type, size) => {
+  const icon = iconOf(type)
+  if (icon === null) return null
+  return jsx('img', { src: icon, alt: '', width: size, height: size, style: { flex: '0 0 auto' } })
+}
+
+/**
  * Colour for a capability label: red when nothing runs, bright green when the
  * provider covers both directions, and a plain green when it covers one.
  * @param key - Dictionary key naming the state.
@@ -180,6 +192,7 @@ export function WebSearchPage(props) {
   const t = typeof props?.t === 'function' ? props.t : key => key
   const [providers, setProviders] = useState([])
   const [selected, setSelected] = useState(null)
+  const [pickerOpen, setPickerOpen] = useState(false)
   const [draft, setDraft] = useState(emptyDraft)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
@@ -325,14 +338,43 @@ export function WebSearchPage(props) {
     typeOptions.push(jsx('option', { value: type, children: typeLabel(type), key: type }))
   }
 
-  const typeSelect = jsx('select', {
-    className: 'dws-field',
-    value: formType,
-    disabled: busy || editing,
-    title: editing ? t('form.typeLocked') : undefined,
-    onChange: editing ? undefined : chooseType,
-    children: typeOptions,
-  })
+  // A native <select> cannot show images, so the provider picker is a button with a
+  // popup list: every row carries the provider's mark next to its name.
+  const typeSelect = jsxs('div', { className: 'dws-picker', children: [
+    jsx('button', {
+      type: 'button',
+      className: 'dws-field dws-picker-button',
+      disabled: busy || editing,
+      title: editing ? t('form.typeLocked') : t('form.type'),
+      'aria-haspopup': 'listbox',
+      'aria-expanded': String(pickerOpen),
+      onClick: () => { if (!busy && !editing) setPickerOpen(!pickerOpen) },
+      children: formType === ''
+        ? jsx('span', { className: 'dws-note', children: t('form.typeNone') })
+        : jsxs('span', { className: 'dws-picker-value', children: [
+          iconNode(formType, 12),
+          jsx('span', { children: typeLabel(formType) }),
+        ] }),
+    }),
+    pickerOpen && jsx('div', { className: 'dws-picker-list', role: 'listbox', children: typeOptions.map(option => {
+      const value = String(option.props.value)
+      return jsxs('button', {
+        type: 'button',
+        key: value === '' ? 'none' : value,
+        className: 'dws-picker-item',
+        role: 'option',
+        'aria-selected': String(value === formType),
+        onClick: () => {
+          setPickerOpen(false)
+          chooseType({ target: { value } })
+        },
+        children: [
+          iconNode(value, 14),
+          jsx('span', { children: value === '' ? t('form.typeNone') : typeLabel(value) }),
+        ],
+      })
+    }) }),
+  ] })
 
   return jsxs('section', { style: styles.page, children: [
     jsx('h2', { style: styles.heading, children: t('nav.title') }),

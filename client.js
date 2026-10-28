@@ -256,6 +256,11 @@ var capsKey = (capabilities, enabled) => {
   return search ? "caps.searchOnly" : "caps.fetchOnly";
 };
 var iconOf = (type) => ICONS[type ?? "exa"] ?? null;
+var iconNode = (type, size) => {
+  const icon = iconOf(type);
+  if (icon === null) return null;
+  return (0, import_jsx_runtime.jsx)("img", { src: icon, alt: "", width: size, height: size, style: { flex: "0 0 auto" } });
+};
 var capsStyle = (key) => {
   if (key === "caps.off") return styles.capsOff;
   if (key === "caps.searchFetch") return styles.capsFull;
@@ -333,6 +338,7 @@ function WebSearchPage(props) {
   const t = typeof props?.t === "function" ? props.t : (key) => key;
   const [providers, setProviders] = (0, import_react.useState)([]);
   const [selected, setSelected] = (0, import_react.useState)(null);
+  const [pickerOpen, setPickerOpen] = (0, import_react.useState)(false);
   const [draft, setDraft] = (0, import_react.useState)(emptyDraft);
   const [busy, setBusy] = (0, import_react.useState)(false);
   const [error, setError] = (0, import_react.useState)(null);
@@ -445,14 +451,41 @@ function WebSearchPage(props) {
   for (const type of TYPE_OPTIONS) {
     typeOptions.push((0, import_jsx_runtime.jsx)("option", { value: type, children: typeLabel(type), key: type }));
   }
-  const typeSelect = (0, import_jsx_runtime.jsx)("select", {
-    className: "dws-field",
-    value: formType,
-    disabled: busy || editing,
-    title: editing ? t("form.typeLocked") : void 0,
-    onChange: editing ? void 0 : chooseType,
-    children: typeOptions
-  });
+  const typeSelect = (0, import_jsx_runtime.jsxs)("div", { className: "dws-picker", children: [
+    (0, import_jsx_runtime.jsx)("button", {
+      type: "button",
+      className: "dws-field dws-picker-button",
+      disabled: busy || editing,
+      title: editing ? t("form.typeLocked") : t("form.type"),
+      "aria-haspopup": "listbox",
+      "aria-expanded": String(pickerOpen),
+      onClick: () => {
+        if (!busy && !editing) setPickerOpen(!pickerOpen);
+      },
+      children: formType === "" ? (0, import_jsx_runtime.jsx)("span", { className: "dws-note", children: t("form.typeNone") }) : (0, import_jsx_runtime.jsxs)("span", { className: "dws-picker-value", children: [
+        iconNode(formType, 12),
+        (0, import_jsx_runtime.jsx)("span", { children: typeLabel(formType) })
+      ] })
+    }),
+    pickerOpen && (0, import_jsx_runtime.jsx)("div", { className: "dws-picker-list", role: "listbox", children: typeOptions.map((option) => {
+      const value = String(option.props.value);
+      return (0, import_jsx_runtime.jsxs)("button", {
+        type: "button",
+        key: value === "" ? "none" : value,
+        className: "dws-picker-item",
+        role: "option",
+        "aria-selected": String(value === formType),
+        onClick: () => {
+          setPickerOpen(false);
+          chooseType({ target: { value } });
+        },
+        children: [
+          iconNode(value, 14),
+          (0, import_jsx_runtime.jsx)("span", { children: value === "" ? t("form.typeNone") : typeLabel(value) })
+        ]
+      });
+    }) })
+  ] });
   return (0, import_jsx_runtime.jsxs)("section", { style: styles.page, children: [
     (0, import_jsx_runtime.jsx)("h2", { style: styles.heading, children: t("nav.title") }),
     (0, import_jsx_runtime.jsx)("p", { style: styles.hint, children: t("page.hint") }),
