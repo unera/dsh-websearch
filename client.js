@@ -475,7 +475,9 @@ function WebSearchPage(props) {
           ]
         }),
         (0, import_jsx_runtime.jsxs)("label", {
-          style: styles.enabled,
+          // Dimmed rather than merely disabled: the switch is not just unavailable
+          // now, it can never apply to this provider type.
+          style: typeCaps.fetch ? styles.enabled : styles.enabledOff,
           title: typeCaps.fetch ? t("form.allowFetch") : t("form.noFetch"),
           children: [
             (0, import_jsx_runtime.jsx)("input", {
@@ -540,6 +542,7 @@ function WebSearchPage(props) {
               height: 16,
               style: { flex: "0 0 auto", opacity: on ? 1 : 0.35 }
             }),
+            (0, import_jsx_runtime.jsx)("span", { style: styles.kind, children: typeLabel(provider.type) }),
             provider.desc !== "" && (0, import_jsx_runtime.jsx)("span", { style: styles.desc, children: provider.desc }),
             (0, import_jsx_runtime.jsx)("span", { style: styles.caps, children: t(capsKey(provider.capabilities)) }),
             (0, import_jsx_runtime.jsxs)("span", { style: styles.actions, children: [
@@ -602,6 +605,8 @@ var styles = {
   caps: { flex: "0 0 auto", fontSize: 11, opacity: 0.55, whiteSpace: "nowrap" },
   row: { alignItems: "center", display: "flex", flexWrap: "wrap", gap: 8, minWidth: 0 },
   enabled: { whiteSpace: "nowrap", fontSize: 13 },
+  enabledOff: { whiteSpace: "nowrap", fontSize: 13, opacity: 0.4 },
+  kind: { flex: "0 0 auto", fontSize: 12, fontWeight: 500, opacity: 0.85, whiteSpace: "nowrap" },
   error: { margin: 0, color: "#f66" }
 };
 function apply(ctx) {

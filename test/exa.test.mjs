@@ -632,15 +632,21 @@ test('Jina fetches without a key but refuses to search', async () => {
   assert.equal((await provider.fetch({ url: 'https://example.com' })).body.content, 'page')
 })
 
-test('Perplexity searches through chat completions and maps both citation shapes', async () => {
+test('Perplexity searches through the Agent API and reads the search_results item', async () => {
   const { createProvider, mapPerplexityResponse } = await import('../index.mjs')
   const calls = []
   const provider = createProvider({ id: 'h-pplx1', type: 'perplexity', apiKey: 'pk-1', enabled: true }, undefined, {
     fetchFn: async (url, init) => {
       calls.push({ url, init })
       return { ok: true, status: 200, json: async () => ({
-        choices: [{ message: { content: 'answer' } }],
-        search_results: [{ url: 'https://a.example', title: 'A', snippet: 'about a', date: '2026-10-28' }],
+        status: 'completed',
+        output: [
+          { type: 'search_results', results: [
+            { url: 'https://a.example', title: 'A', snippet: 'about a', date: '2026-10-28' },
+            { url: 'https://a.example', title: 'dup' },
+          ] },
+          { type: 'message', content: [{ type: 'output_text', text: 'answer' }] },
+        ],
       }) }
     },
   })
@@ -651,16 +657,23 @@ test('Perplexity searches through chat completions and maps both citation shapes
   assert.deepEqual(result.sources, [
     { url: 'https://a.example', title: 'A', snippet: 'about a', publishedAt: '2026-10-28' },
   ])
-  assert.equal(calls[0].url, 'https://api.perplexity.ai/chat/completions')
-  assert.equal(calls[0].init.headers.authorization, 'Bearer pk-1')
-  const body = JSON.parse(calls[0].init.body)
-  assert.equal(body.model, 'sonar')
-  assert.equal(body.messages[0].content, 'курс доллара')
 
-  // Bare citations are the fallback shape, deduplicated.
-  assert.deepEqual(
-    mapPerplexityResponse({ citations: ['https://x.example', 'https://x.example', 'https://y.example'] }).sources,
-    [{ url: 'https://x.example' }, { url: 'https://y.example' }],
+  const [{ url, init }] = calls
+  assert.equal(url, 'https://api.perplexity.ai/v1/agent')
+  assert.equal(init.headers.authorization, 'Bearer pk-1')
+  const body = JSON.parse(init.body)
+  assert.equal(body.model, 'perplexity/sonar')
+  assert.equal(body.input, 'курс доллара')
+  assert.deepEqual(body.tools, [{ type: 'web_search' }])
+  assert.deepEqual(body.tool_choice, { type: 'web_search' })
+  // Strict mode: nothing from the retired chat-completions body survives.
+  assert.deepEqual(Object.keys(body).sort(), ['input', 'model', 'tool_choice', 'tools'])
+
+  // A 200-wrapped failure must not look like an empty answer.
+  assert.throws(
+    () => mapPerplexityResponse({ status: 'failed', error: { message: 'quota' }, output: [] }),
+    /Perplexity run failed: quota/,
   )
-  assert.throws(() => mapPerplexityResponse({ choices: [] }), /neither search_results nor citations/)
+  assert.throws(() => mapPerplexityResponse({ status: 'completed', output: [] }), /no search_results item/)
 })
+

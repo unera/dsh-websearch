@@ -32,12 +32,15 @@ export const OPENAI_DEFAULT_MODEL = 'gpt-5.5'
 export const JINA_READER_URL = 'https://r.jina.ai'
 /** Jina search base; the query is appended. Requires an API key. */
 export const JINA_SEARCH_URL = 'https://s.jina.ai'
-/** Perplexity's OpenAI-compatible endpoint; `/chat/completions` is the operation. */
+/**
+ * Perplexity Agent API base. Sonar's `/chat/completions` retired in favour of this
+ * endpoint; `/v1/agent` and `/v1/responses` are the same surface.
+ */
 export const PERPLEXITY_BASE_URL = 'https://api.perplexity.ai'
-/** Search model; `sonar` answers with citations. */
-export const PERPLEXITY_DEFAULT_MODEL = 'sonar'
-/** Upper bound on the generated answer tokens. */
-export const PERPLEXITY_MAX_TOKENS = 1024
+/** Search model slug on the Agent API. */
+export const PERPLEXITY_DEFAULT_MODEL = 'perplexity/sonar'
+/** Upper bound on generated answer tokens. */
+export const PERPLEXITY_MAX_OUTPUT_TOKENS = 1024
 export const INTERNAL_PROVIDER_ID = 'internal'
 
 const ProviderConfigSchema = z.object({
@@ -631,38 +634,39 @@ export function mapPerplexityResponse(payload) {
   if (payload === null || typeof payload !== 'object') {
     throw new WebError('Perplexity returned an unexpected body', 'WEB_PROVIDER_ERROR')
   }
-  if (Array.isArray(payload.search_results)) {
-    const sources = []
-    for (const item of payload.search_results) {
-      if (item === null || typeof item !== 'object') continue
-      if (typeof item.url !== 'string' || item.url === '') continue
-      sources.push({
-        url: item.url,
-        ...typeof item.title === 'string' && item.title !== '' ? { title: item.title } : {},
-        ...typeof item.snippet === 'string' && item.snippet !== '' ? { snippet: item.snippet } : {},
-        ...typeof item.date === 'string' && item.date !== '' ? { publishedAt: item.date } : {},
-      })
-    }
-    return { sources, truncated: false }
+  // A failed run may still arrive with HTTP 200, so the body decides.
+  if (payload.status === 'failed' || payload.status === 'cancelled') {
+    const detail = payload.error?.message ?? payload.error?.code ?? payload.status
+    throw new WebError(`Perplexity run ${payload.status}: ${String(detail)}`, 'WEB_PROVIDER_ERROR')
   }
-  if (Array.isArray(payload.citations)) {
-    const seen = new Set()
-    const sources = []
-    for (const url of payload.citations) {
-      if (typeof url !== 'string' || url === '' || seen.has(url)) continue
-      seen.add(url)
-      sources.push({ url })
-    }
-    return { sources, truncated: false }
+  const output = Array.isArray(payload.output) ? payload.output : []
+  const block = output.find(item => item?.type === 'search_results')
+  if (block === undefined) {
+    throw new WebError('Perplexity returned no search_results item', 'WEB_PROVIDER_ERROR')
   }
-  throw new WebError('Perplexity returned neither search_results nor citations', 'WEB_PROVIDER_ERROR')
+  const sources = []
+  const seen = new Set()
+  for (const item of block.results ?? []) {
+    if (item === null || typeof item !== 'object') continue
+    if (typeof item.url !== 'string' || item.url === '' || seen.has(item.url)) continue
+    seen.add(item.url)
+    sources.push({
+      url: item.url,
+      ...typeof item.title === 'string' && item.title !== '' ? { title: item.title } : {},
+      ...typeof item.snippet === 'string' && item.snippet !== '' ? { snippet: item.snippet } : {},
+      ...typeof item.date === 'string' && item.date !== '' ? { publishedAt: item.date } : {},
+    })
+  }
+  return { sources, truncated: false }
 }
 
 /**
- * Perplexity search: one OpenAI-compatible chat completion with the `sonar` model.
+ * Perplexity search through the Agent API.
  *
- * Perplexity publishes no page-retrieval endpoint, so the entry searches only and
- * carries no `fetch` method.
+ * Sonar's chat-completions surface is retired, so this calls `/v1/agent`: a bare
+ * model request does no search there, and the web tool is offered *and* forced,
+ * because an ungrounded answer would have no sources at all. Perplexity publishes
+ * no page-retrieval endpoint, so the entry carries no `fetch` method.
  *
  * @param config - One provider entry.
  * @param credentials - Optional credentials seam used to resolve the key reference.
@@ -672,7 +676,7 @@ export function createPerplexityProvider(config, credentials, { fetchFn = fetch 
   const id = normalizeProviderId(config.id)
   const ref = credentialRef(config.credentialRef ?? makeCredentialRef('perplexity', id))
   const base = (String(config.baseUrl ?? '').trim() || PERPLEXITY_BASE_URL).replace(/\/+$/, '')
-  const endpoint = `${base}/chat/completions`
+  const endpoint = base.endsWith('/v1') ? `${base}/agent` : `${base}/v1/agent`
   const model = String(config.model ?? '').trim() || PERPLEXITY_DEFAULT_MODEL
   const keyInConfig = String(config.apiKey ?? '').trim() !== ''
   const keyInEnv = String(process.env[config.credentialRef ?? ''] ?? '').trim() !== ''
@@ -695,10 +699,12 @@ export function createPerplexityProvider(config, credentials, { fetchFn = fetch 
       if (!apiKey) {
         throw new WebError(`Perplexity search has no API key for "${ref}"`, 'WEB_PROVIDER_CREDENTIAL_MISSING')
       }
+      // The Agent API rejects unknown fields, so only these four are sent.
       const body = {
         model,
-        max_tokens: PERPLEXITY_MAX_TOKENS,
-        messages: [{ role: 'user', content: query }],
+        input: query,
+        tools: [{ type: 'web_search' }],
+        tool_choice: { type: 'web_search' },
       }
       let response
       try {
