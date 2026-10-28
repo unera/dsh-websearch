@@ -388,6 +388,10 @@ export function WebSearchPage(props) {
       ] }),
     ] }),
 
+    // Right under the form: an error belongs to the action just taken, and on a
+    // full page the message at the bottom was easy to miss.
+    error !== '' && jsx('p', { style: styles.error, children: error }),
+
     providers.length > 0 && jsx('ul', { style: styles.list, children: providers.map((provider, index) => {
       const on = provider.enabled === true
       const icon = iconOf(provider.type)
@@ -453,7 +457,6 @@ export function WebSearchPage(props) {
       }, provider.id || String(index))
     }) }),
 
-    error !== '' && jsx('p', { style: styles.error, children: error }),
   ] })
 }
 
