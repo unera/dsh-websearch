@@ -13,7 +13,8 @@
     "index.mjs",
     "client.js",
     "cordis.patch.yml",
-    "README.md"
+    "README.md",
+    "LICENSE"
   ],
   "license": "MIT",
   "engines": {
