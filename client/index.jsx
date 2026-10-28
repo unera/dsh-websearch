@@ -196,8 +196,8 @@ const CSS = `
 /* Side-by-side help plates: the left one carries the walkthrough, the right one the
  * registration control. Plain flex, no media query — the panel decides the width. */
 .dws-plates { align-items: stretch; display: flex; flex-wrap: nowrap; gap: 8px; width: 100%; }
-.dws-plate-wide { flex: 2 1 0; min-width: 0; }
-.dws-plate-narrow { flex: 1 1 0; min-width: 0; }
+.dws-plate-side { flex: 0 0 30%; min-width: 0; }
+.dws-plate-main { flex: 1 1 0; min-width: 0; }
 /* Icon picker: a button that opens a list, since <select> cannot render images. */
 .dws-picker { min-width: 0; position: relative; }
 .dws-picker-button { align-items: center; cursor: pointer; display: flex; gap: 6px; text-align: left; }
@@ -490,11 +490,11 @@ function WebSearchPageInner(props) {
     jsx('h2', { style: styles.heading, children: t('nav.title') }),
     jsx('p', { style: styles.hint, children: t('page.hint') }),
     jsxs('div', { className: 'dws-plates', children: [
-      jsx('div', { className: 'dws-card dws-plate-wide', children: jsx('p', {
+      jsx('div', { className: 'dws-card dws-plate-side', children: jsx('p', {
         style: styles.helpText,
         children: t('help.list'),
       }) }),
-      jsx('div', { className: 'dws-card dws-plate-narrow', children: jsxs('div', {
+      jsx('div', { className: 'dws-card dws-plate-main', children: jsxs('div', {
         style: { display: 'flex', flexDirection: 'column', gap: 8 },
         children: [
           jsx('span', {
