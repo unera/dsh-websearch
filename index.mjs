@@ -218,6 +218,9 @@ export function countersDir(env = process.env) {
 
 const ZERO_STATS = Object.freeze({ searches: 0, errors: 0, lastSearch: 0, lastError: 0 })
 
+/** What this process actually registered with the `web` seam; the page reports it. */
+export const runtimeState = { registered: false, reason: '' }
+
 /** Keep only the four counter fields, so a hand-edited file cannot poison the page. */
 function sanitizeStats(value) {
   const count = field => {

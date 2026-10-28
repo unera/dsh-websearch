@@ -222,3 +222,16 @@ test('reset zeroes both counters and both dates on disk', async () => {
   assert.deepEqual(statsOf('h-zero1'), { searches: 0, errors: 0, lastSearch: 0, lastError: 0 })
   assert.deepEqual(response.payload.providers[0].stats, { searches: 0, errors: 0, lastSearch: 0, lastError: 0 })
 })
+
+test('state reports providers, counters and registration', async () => {
+  const { createProviderHandler } = await import('../index.mjs')
+  const settings = fakeSettings([{ id: 'h-state1', type: 'exa', desc: 'kept', apiKey: 'k', enabled: true }])
+  const handler = createProviderHandler(settings)
+
+  const response = await callHandler(handler, { method: 'GET', url: '/__ws/state' })
+  assert.equal(response.status, 200)
+  assert.equal(response.payload.providers.length, 1)
+  assert.equal(response.payload.providers[0].keySet, true)
+  assert.equal(typeof response.payload.registered, 'boolean')
+  assert.equal(response.payload.providerId, 'dsh-websearch')
+})
