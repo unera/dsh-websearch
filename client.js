@@ -41,7 +41,6 @@ var en = {
   "help.restart": "Restart DeepSeek Harness for this to take effect.",
   "page.register": "Register",
   "page.unregister": "Unregister",
-  "page.activeSelf": "This aggregator is the active search provider.",
   "page.activeOther": "Active search provider: ",
   "page.activeNone": "none",
   "page.useForSearch": "Use for search and page fetch",
@@ -109,7 +108,6 @@ var ru = {
   "help.restart": "\u0427\u0442\u043E\u0431\u044B \u044D\u0442\u043E \u043F\u0440\u0438\u043C\u0435\u043D\u0438\u043B\u043E\u0441\u044C, \u043F\u0435\u0440\u0435\u0437\u0430\u043F\u0443\u0441\u0442\u0438\u0442\u0435 DeepSeek Harness.",
   "page.register": "\u0417\u0430\u0440\u0435\u0433\u0438\u0441\u0442\u0440\u0438\u0440\u043E\u0432\u0430\u0442\u044C",
   "page.unregister": "\u041E\u0442\u043E\u0437\u0432\u0430\u0442\u044C \u0440\u0435\u0433\u0438\u0441\u0442\u0440\u0430\u0446\u0438\u044E",
-  "page.activeSelf": "\u042D\u0442\u043E\u0442 \u0430\u0433\u0440\u0435\u0433\u0430\u0442\u043E\u0440 \u2014 \u0430\u043A\u0442\u0438\u0432\u043D\u044B\u0439 \u043F\u0440\u043E\u0432\u0430\u0439\u0434\u0435\u0440 \u043F\u043E\u0438\u0441\u043A\u0430.",
   "page.activeOther": "\u0410\u043A\u0442\u0438\u0432\u043D\u044B\u0439 \u043F\u0440\u043E\u0432\u0430\u0439\u0434\u0435\u0440 \u043F\u043E\u0438\u0441\u043A\u0430: ",
   "page.activeNone": "\u043D\u0435\u0442",
   "page.useForSearch": "\u0418\u0441\u043F\u043E\u043B\u044C\u0437\u043E\u0432\u0430\u0442\u044C \u0434\u043B\u044F \u043F\u043E\u0438\u0441\u043A\u0430 \u0438 \u0437\u0430\u0433\u0440\u0443\u0437\u043A\u0438 \u0441\u0442\u0440\u0430\u043D\u0438\u0446",
@@ -177,7 +175,6 @@ var zh = {
   "help.restart": "\u8BF7\u91CD\u542F DeepSeek Harness \u4F7F\u5176\u751F\u6548\u3002",
   "page.register": "\u6CE8\u518C",
   "page.unregister": "\u64A4\u9500\u6CE8\u518C",
-  "page.activeSelf": "\u6B64\u805A\u5408\u5668\u662F\u5F53\u524D\u751F\u6548\u7684\u641C\u7D22\u63D0\u4F9B\u65B9\u3002",
   "page.activeOther": "\u5F53\u524D\u751F\u6548\u7684\u641C\u7D22\u63D0\u4F9B\u65B9\uFF1A",
   "page.activeNone": "\u65E0",
   "page.useForSearch": "\u7528\u4E8E\u641C\u7D22\u548C\u6293\u53D6\u7F51\u9875",
@@ -621,10 +618,15 @@ function WebSearchPageInner(props) {
         style: { display: "flex", flexDirection: "column", gap: 8 },
         children: [
           (0, import_jsx_runtime.jsxs)("div", { style: styles.statusRow, children: [
-            (0, import_jsx_runtime.jsx)("span", {
-              style: styles.activeLabel,
-              children: active === "dsh-websearch" ? t("page.activeSelf") : `${t("page.activeOther")}${active === "" ? t("page.activeNone") : active}`
-            }),
+            // One shape for both cases: the label, then the provider id — green when
+            // the id is this aggregator.
+            (0, import_jsx_runtime.jsxs)("span", { style: styles.activeLabel, children: [
+              (0, import_jsx_runtime.jsx)("span", { children: t("page.activeOther") }),
+              (0, import_jsx_runtime.jsx)("span", {
+                style: active === "dsh-websearch" ? styles.green : void 0,
+                children: active === "" ? t("page.activeNone") : active
+              })
+            ] }),
             active === "dsh-websearch" && registered !== null && (0, import_jsx_runtime.jsx)("span", {
               style: registered.registered ? styles.green : styles.red,
               children: registered.registered ? t("page.registered") : `${t("page.notRegistered")}${registered.reason || registered.step || t("page.unknown")}`

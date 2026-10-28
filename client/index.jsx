@@ -499,12 +499,15 @@ function WebSearchPageInner(props) {
         style: { display: 'flex', flexDirection: 'column', gap: 8 },
         children: [
           jsxs('div', { style: styles.statusRow, children: [
-            jsx('span', {
-              style: styles.activeLabel,
-              children: active === 'dsh-websearch'
-                ? t('page.activeSelf')
-                : `${t('page.activeOther')}${active === '' ? t('page.activeNone') : active}`,
-            }),
+            // One shape for both cases: the label, then the provider id — green when
+            // the id is this aggregator.
+            jsxs('span', { style: styles.activeLabel, children: [
+              jsx('span', { children: t('page.activeOther') }),
+              jsx('span', {
+                style: active === 'dsh-websearch' ? styles.green : undefined,
+                children: active === '' ? t('page.activeNone') : active,
+              }),
+            ] }),
             active === 'dsh-websearch' && registered !== null && jsx('span', {
               style: registered.registered ? styles.green : styles.red,
               children: registered.registered
