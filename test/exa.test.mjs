@@ -557,3 +557,16 @@ test('capabilities fold the per-entry permissions in', async () => {
   const response = await callHandler(createProviderHandler(settings), { method: 'GET', url: '/__ws/state' })
   assert.deepEqual(response.payload.providers[0].capabilities, { search: true, fetch: false })
 })
+
+test('a type that cannot fetch never stores an enabled fetch permission', async () => {
+  const { createProviderHandler } = await import('../index.mjs')
+  const settings = fakeSettings([])
+  const handler = createProviderHandler(settings)
+
+  await callHandler(handler, { body: { action: 'add', draft: { type: 'openai', apiKey: 'sk-1', useFetch: true } } })
+  assert.equal(settings.state.providers[0].useFetch, false)
+  assert.equal(settings.state.providers[0].useSearch, true)
+
+  await callHandler(handler, { body: { action: 'save', index: 0, draft: { model: '', enabled: true, useFetch: true } } })
+  assert.equal(settings.state.providers[0].useFetch, false)
+})

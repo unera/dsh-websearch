@@ -866,6 +866,9 @@ export function createProviderHandler(settings) {
         if (!PROVIDER_TYPES.includes(type)) {
           return json(response, 400, { error: `unsupported provider type ${JSON.stringify(type)}` })
         }
+        const caps = PROVIDER_CAPABILITIES[type]
+        const typeSearch = caps.search !== false
+        const typeFetch = caps.fetch === true
         const apiKey = String(draft.apiKey ?? '').trim()
         if (apiKey === '') return json(response, 400, { error: 'an API key is required' })
         const id = generateProviderId(providers)
@@ -877,19 +880,23 @@ export function createProviderHandler(settings) {
           apiKey,
           credentialRef: makeCredentialRef(type, id),
           enabled: draft.enabled !== false,
-          useSearch: draft.useSearch !== false,
-          useFetch: draft.useFetch !== false,
+          useSearch: typeSearch !== false,
+          useFetch: typeFetch === true && draft.useFetch !== false,
         })
       } else if (action === 'save') {
         const index = indexOf(providers, body.index)
         const draft = body.draft ?? {}
+        const existingType = providers[index].type ?? 'exa'
+        const caps = PROVIDER_CAPABILITIES[existingType] ?? { search: true, fetch: true }
+        const typeSearch = caps.search !== false
+        const typeFetch = caps.fetch === true
         const next = {
           ...providers[index],
           desc: String(draft.desc ?? '').trim(),
           model: String(draft.model ?? '').trim(),
           enabled: draft.enabled !== false,
-          useSearch: draft.useSearch !== false,
-          useFetch: draft.useFetch !== false,
+          useSearch: typeSearch !== false,
+          useFetch: typeFetch === true && draft.useFetch !== false,
         }
         const apiKey = String(draft.apiKey ?? '').trim()
         // An empty key field means "keep the stored one", not "erase it".

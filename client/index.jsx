@@ -26,6 +26,16 @@ const typeLabel = type => TYPE_LABELS[type] ?? String(type ?? '')
  * @param capabilities - Capabilities reported by the host.
  * @returns The locale key naming them.
  */
+/**
+ * What each provider type is intrinsically able to do. The form reads it to keep
+ * a switch that the type cannot honour from being turned on at all.
+ */
+const PROVIDER_CAPS = {
+  exa: { search: true, fetch: true },
+  deepseek: { search: true, fetch: true },
+  openai: { search: true, fetch: false },
+}
+
 const capsKey = capabilities => {
   const search = capabilities?.search !== false
   const fetch = capabilities?.fetch === true
@@ -207,6 +217,15 @@ export function WebSearchPage(props) {
     run(() => call('/providers', action))
   }
 
+  // A dictionary that failed to register makes `t` return the key itself; the
+  // literal keeps the two permission switches readable either way.
+  const label = (key, fallback) => {
+    const text = t(key)
+    return text === key ? fallback : text
+  }
+
+  const typeCaps = PROVIDER_CAPS[formType] ?? { search: true, fetch: true }
+
   const lang = uiLanguage(t)
   const when = ms => (typeof ms === 'number' && ms > 0 ? new Date(ms).toLocaleString(lang) : t('common.never'))
 
@@ -304,24 +323,27 @@ export function WebSearchPage(props) {
         ] }),
         jsxs('label', {
           style: styles.enabled,
-          title: t('form.useSearch'),
+          title: t('form.allowSearch'),
           children: [
             jsx('input', {
               type: 'checkbox', checked: draft.useSearch !== false, disabled: busy,
               onChange: e => setDraft({ ...draft, useSearch: e.target.checked }),
             }),
-            ` ${t('form.useSearch')}`,
+            ` ${label('form.allowSearch', 'allow search')}`,
           ],
         }),
         jsxs('label', {
           style: styles.enabled,
-          title: t('form.useFetch'),
+          title: typeCaps.fetch ? t('form.allowFetch') : t('form.noFetch'),
           children: [
             jsx('input', {
-              type: 'checkbox', checked: draft.useFetch !== false, disabled: busy,
+              type: 'checkbox',
+              // A type without a page-retrieval endpoint cannot be allowed to fetch.
+              checked: typeCaps.fetch && draft.useFetch !== false,
+              disabled: busy || !typeCaps.fetch,
               onChange: e => setDraft({ ...draft, useFetch: e.target.checked }),
             }),
-            ` ${t('form.useFetch')}`,
+            ` ${label('form.allowFetch', 'allow page fetch')}`,
           ],
         }),
         formType === 'openai' && jsx('input', {

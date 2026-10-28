@@ -50,8 +50,9 @@ var en = {
   "form.chooseHint": "Choose a web search provider.",
   "form.desc": "Description",
   "form.descPlaceholder": "Description (optional)",
-  "form.useSearch": "search",
-  "form.useFetch": "fetch",
+  "form.allowSearch": "allow search",
+  "form.allowFetch": "allow page fetch",
+  "form.noFetch": "This provider cannot fetch pages",
   "form.model": "Model",
   "form.modelHint": "Model name, for example gpt-5.5",
   "form.secret": "Secret",
@@ -97,8 +98,9 @@ var ru = {
   "form.chooseHint": "\u0412\u044B\u0431\u0435\u0440\u0438\u0442\u0435 \u043F\u0440\u043E\u0432\u0430\u0439\u0434\u0435\u0440\u0430 \u043F\u043E\u0438\u0441\u043A\u0430 \u0432 \u0438\u043D\u0442\u0435\u0440\u043D\u0435\u0442\u0435.",
   "form.desc": "\u041E\u043F\u0438\u0441\u0430\u043D\u0438\u0435",
   "form.descPlaceholder": "\u041E\u043F\u0438\u0441\u0430\u043D\u0438\u0435 (\u043D\u0435\u043E\u0431\u044F\u0437\u0430\u0442\u0435\u043B\u044C\u043D\u043E)",
-  "form.useSearch": "\u043F\u043E\u0438\u0441\u043A",
-  "form.useFetch": "\u0441\u043A\u0430\u0447\u0438\u0432\u0430\u043D\u0438\u0435",
+  "form.allowSearch": "\u0440\u0430\u0437\u0440\u0435\u0448\u0438\u0442\u044C \u043F\u043E\u0438\u0441\u043A",
+  "form.allowFetch": "\u0440\u0430\u0437\u0440\u0435\u0448\u0438\u0442\u044C \u0441\u043A\u0430\u0447\u0438\u0432\u0430\u043D\u0438\u0435",
+  "form.noFetch": "\u042D\u0442\u043E\u0442 \u043F\u0440\u043E\u0432\u0430\u0439\u0434\u0435\u0440 \u043D\u0435 \u0443\u043C\u0435\u0435\u0442 \u0441\u043A\u0430\u0447\u0438\u0432\u0430\u0442\u044C \u0441\u0442\u0440\u0430\u043D\u0438\u0446\u044B",
   "form.model": "\u041C\u043E\u0434\u0435\u043B\u044C",
   "form.modelHint": "\u0418\u043C\u044F \u043C\u043E\u0434\u0435\u043B\u0438, \u043D\u0430\u043F\u0440\u0438\u043C\u0435\u0440 gpt-5.5",
   "form.secret": "\u0421\u0435\u043A\u0440\u0435\u0442",
@@ -144,8 +146,9 @@ var zh = {
   "form.chooseHint": "\u8BF7\u9009\u62E9\u7F51\u7EDC\u641C\u7D22\u7684\u63D0\u4F9B\u65B9\u3002",
   "form.desc": "\u63CF\u8FF0",
   "form.descPlaceholder": "\u63CF\u8FF0\uFF08\u53EF\u9009\uFF09",
-  "form.useSearch": "\u641C\u7D22",
-  "form.useFetch": "\u6293\u53D6",
+  "form.allowSearch": "\u5141\u8BB8\u641C\u7D22",
+  "form.allowFetch": "\u5141\u8BB8\u6293\u53D6",
+  "form.noFetch": "\u6B64\u63D0\u4F9B\u65B9\u65E0\u6CD5\u6293\u53D6\u9875\u9762",
   "form.model": "\u6A21\u578B",
   "form.modelHint": "\u6A21\u578B\u540D\u79F0\uFF0C\u4F8B\u5982 gpt-5.5",
   "form.secret": "\u5BC6\u94A5",
@@ -190,6 +193,11 @@ var DEEPSEEK_ICON = "data:image/svg+xml;utf8," + encodeURIComponent(
 );
 var ICONS = { exa: EXA_ICON, deepseek: DEEPSEEK_ICON };
 var typeLabel = (type) => TYPE_LABELS[type] ?? String(type ?? "");
+var PROVIDER_CAPS = {
+  exa: { search: true, fetch: true },
+  deepseek: { search: true, fetch: true },
+  openai: { search: true, fetch: false }
+};
 var capsKey = (capabilities) => {
   const search = capabilities?.search !== false;
   const fetch2 = capabilities?.fetch === true;
@@ -339,6 +347,11 @@ function WebSearchPage(props) {
     event.stopPropagation();
     run(() => call("/providers", action));
   };
+  const label = (key, fallback) => {
+    const text = t(key);
+    return text === key ? fallback : text;
+  };
+  const typeCaps = PROVIDER_CAPS[formType] ?? { search: true, fetch: true };
   const lang = uiLanguage(t);
   const when = (ms) => typeof ms === "number" && ms > 0 ? new Date(ms).toLocaleString(lang) : t("common.never");
   if (loading) {
@@ -435,7 +448,7 @@ function WebSearchPage(props) {
         ] }),
         (0, import_jsx_runtime.jsxs)("label", {
           style: styles.enabled,
-          title: t("form.useSearch"),
+          title: t("form.allowSearch"),
           children: [
             (0, import_jsx_runtime.jsx)("input", {
               type: "checkbox",
@@ -443,20 +456,21 @@ function WebSearchPage(props) {
               disabled: busy,
               onChange: (e) => setDraft({ ...draft, useSearch: e.target.checked })
             }),
-            ` ${t("form.useSearch")}`
+            ` ${label("form.allowSearch", "allow search")}`
           ]
         }),
         (0, import_jsx_runtime.jsxs)("label", {
           style: styles.enabled,
-          title: t("form.useFetch"),
+          title: typeCaps.fetch ? t("form.allowFetch") : t("form.noFetch"),
           children: [
             (0, import_jsx_runtime.jsx)("input", {
               type: "checkbox",
-              checked: draft.useFetch !== false,
-              disabled: busy,
+              // A type without a page-retrieval endpoint cannot be allowed to fetch.
+              checked: typeCaps.fetch && draft.useFetch !== false,
+              disabled: busy || !typeCaps.fetch,
               onChange: (e) => setDraft({ ...draft, useFetch: e.target.checked })
             }),
-            ` ${t("form.useFetch")}`
+            ` ${label("form.allowFetch", "allow page fetch")}`
           ]
         }),
         formType === "openai" && (0, import_jsx_runtime.jsx)("input", {
