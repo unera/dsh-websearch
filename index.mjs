@@ -53,6 +53,13 @@ export const TAVILY_DEFAULT_MAX_RESULTS = 5
 export const FIRECRAWL_BASE_URL = 'https://api.firecrawl.dev'
 /** Results requested per search. */
 export const FIRECRAWL_DEFAULT_LIMIT = 5
+/**
+ * Brave Search API. One GET per query with the key in `X-Subscription-Token`;
+ * Brave publishes no page-retrieval endpoint.
+ */
+export const BRAVE_SEARCH_URL = 'https://api.search.brave.com/res/v1/web/search'
+/** Results requested per search; Brave caps `count` at 20. */
+export const BRAVE_DEFAULT_COUNT = 5
 export const INTERNAL_PROVIDER_ID = 'internal'
 
 const ProviderConfigSchema = z.object({
@@ -1005,6 +1012,114 @@ export function createFirecrawlProvider(config, credentials, { fetchFn = fetch }
   }
 }
 
+
+/**
+ * Map a Brave web-search answer onto `WebSearchResult`.
+ *
+ * Brave nests results under `web.results`; older responses may omit the wrapper,
+ * so both shapes are accepted.
+ *
+ * @param payload - Parsed `/res/v1/web/search` body.
+ * @returns Sources in provider order.
+ * @throws {@link WebError} when no results shape is present.
+ */
+export function mapBraveResponse(payload) {
+  if (payload === null || typeof payload !== 'object') {
+    throw new WebError('Brave returned an unexpected body', 'WEB_PROVIDER_ERROR')
+  }
+  const items = Array.isArray(payload.web?.results)
+    ? payload.web.results
+    : (Array.isArray(payload.results) ? payload.results : undefined)
+  if (items === undefined) {
+    throw new WebError('Brave returned no web results', 'WEB_PROVIDER_ERROR')
+  }
+  const sources = []
+  const seen = new Set()
+  for (const item of items) {
+    if (item === null || typeof item !== 'object') continue
+    if (typeof item.url !== 'string' || item.url === '' || seen.has(item.url)) continue
+    seen.add(item.url)
+    const snippet = String(item.description ?? item.snippet ?? '').replace(/\s+/g, ' ').trim()
+    // Brave may describe the date as an ISO stamp or as a human "2 days ago".
+    const published = typeof item.page_age === 'string' && item.page_age !== ''
+      ? item.page_age
+      : (typeof item.age === 'string' && item.age !== '' ? item.age : undefined)
+    sources.push({
+      url: item.url,
+      ...typeof item.title === 'string' && item.title !== '' ? { title: item.title } : {},
+      ...snippet === '' ? {} : { snippet },
+      ...published === undefined ? {} : { publishedAt: published },
+    })
+  }
+  return { sources, truncated: false }
+}
+
+/**
+ * Brave search: its own independent index, one GET per query.
+ *
+ * @param config - One provider entry.
+ * @param credentials - Optional credentials seam used to resolve the key reference.
+ * @param options.fetchFn - Transport, replaceable in tests.
+ */
+export function createBraveProvider(config, credentials, { fetchFn = fetch } = {}) {
+  const id = normalizeProviderId(config.id)
+  const ref = credentialRef(config.credentialRef ?? makeCredentialRef('brave', id))
+  const endpoint = String(config.baseUrl ?? '').trim() || BRAVE_SEARCH_URL
+  const keyInConfig = String(config.apiKey ?? '').trim() !== ''
+  const keyInEnv = String(process.env[config.credentialRef ?? ''] ?? '').trim() !== ''
+  return {
+    id,
+    type: 'brave',
+    desc: config.desc ?? '',
+    credentialRef: config.credentialRef ?? makeCredentialRef('brave', id),
+    enabled: config.enabled !== false,
+    throttle: config.throttle ?? undefined,
+    config: config.config ?? {},
+    available: () => keyInConfig || Boolean(credentials) || keyInEnv,
+    async search(request, signal) {
+      const query = String(request.query ?? '').trim()
+      if (!query) return { sources: [], truncated: false }
+      const resolved = await credentials?.resolve(ref)
+      const apiKey = String(config.apiKey ?? '').trim()
+        || String(resolved?.value ?? '').trim()
+        || String(process.env[ref] ?? '').trim()
+      if (!apiKey) {
+        throw new WebError(`Brave search has no API key for "${ref}"`, 'WEB_PROVIDER_CREDENTIAL_MISSING')
+      }
+      const count = Number(request.maxResults) > 0
+        ? Math.min(Number(request.maxResults), 20)
+        : BRAVE_DEFAULT_COUNT
+      const url = `${endpoint}?q=${encodeURIComponent(query)}&count=${count}`
+      let response
+      try {
+        response = await fetchFn(url, {
+          method: 'GET',
+          redirect: 'error',
+          headers: {
+            'x-subscription-token': apiKey,
+            accept: 'application/json',
+          },
+          signal,
+        })
+      } catch (error) {
+        if (signal?.aborted) throw new WebError('Brave search aborted', 'WEB_ABORTED', { cause: error })
+        throw new WebError(`Brave search request failed: ${String(error)}`, 'WEB_PROVIDER_ERROR', { cause: error })
+      }
+      if (response.status === 401 || response.status === 403) throw new WebError('Brave rejected the configured API key.', 'WEB_PROVIDER_CREDENTIAL_INVALID')
+      if (response.status === 429) throw new WebError('Brave search was rate limited.', 'WEB_PROVIDER_RATE_LIMITED')
+      if (!response.ok) {
+        const detail = (await response.text().catch(() => '')).replace(/\s+/g, ' ').slice(0, 240)
+        throw new WebError(`Brave search failed (${response.status})${detail ? `: ${detail}` : '.'}`, 'WEB_PROVIDER_ERROR')
+      }
+      let payload
+      try { payload = await response.json() } catch (error) {
+        throw new WebError(`Brave returned malformed JSON: ${String(error)}`, 'WEB_PROVIDER_ERROR', { cause: error })
+      }
+      return mapBraveResponse(payload)
+    },
+  }
+}
+
 /** Build the provider a config entry names; the type decides the wire protocol. */
 export function createProvider(config, credentials, options) {
   const type = config.type ?? 'exa'
@@ -1020,7 +1135,9 @@ export function createProvider(config, credentials, options) {
             ? createTavilyProvider(config, credentials, options)
             : type === 'firecrawl'
               ? createFirecrawlProvider(config, credentials, options)
-              : createExaProvider(config, credentials, options)
+              : type === 'brave'
+                ? createBraveProvider(config, credentials, options)
+                : createExaProvider(config, credentials, options)
   // The aggregators read these: a type may be able to do something the entry is
   // configured not to use, which is how one provider searches while the next
   // one, further down the list, does the page retrieval.
@@ -1160,7 +1277,7 @@ export const SEARCH_PROVIDER_ID = 'dsh-websearch'
  * Provider types this build can talk to. The form's select offers exactly these,
  * and `/providers` refuses anything else instead of storing a type it cannot run.
  */
-export const PROVIDER_TYPES = Object.freeze(['exa', 'deepseek', 'openai', 'jina', 'perplexity', 'tavily', 'firecrawl'])
+export const PROVIDER_TYPES = Object.freeze(['exa', 'deepseek', 'openai', 'jina', 'perplexity', 'tavily', 'firecrawl', 'brave'])
 
 /**
  * What each provider type can do. Search and page retrieval are separate
@@ -1177,6 +1294,7 @@ export const PROVIDER_CAPABILITIES = Object.freeze({
   perplexity: Object.freeze({ search: true, fetch: false }),
   tavily: Object.freeze({ search: true, fetch: true }),
   firecrawl: Object.freeze({ search: true, fetch: true }),
+  brave: Object.freeze({ search: true, fetch: false }),
 })
 /** The `web` seam's namespace, whose `searchProvider` field selects the active provider. */
 export const WEB_NAMESPACE = 'web'

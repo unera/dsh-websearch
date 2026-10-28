@@ -181,7 +181,7 @@ export const zh = {
 export const DICTIONARIES = { en, ru, zh }
 
 /** Provider type → the name a person reads. Types come from the host. */
-export const TYPE_LABELS = { exa: 'Exa', deepseek: 'DeepSeek', openai: 'OpenAI', jina: 'Jina', perplexity: 'Perplexity', tavily: 'Tavily', firecrawl: 'Firecrawl' }
+export const TYPE_LABELS = { exa: 'Exa', deepseek: 'DeepSeek', openai: 'OpenAI', jina: 'Jina', perplexity: 'Perplexity', tavily: 'Tavily', firecrawl: 'Firecrawl', brave: 'Brave' }
 
 /** Types the form offers, in the order of the host's `PROVIDER_TYPES`. */
-export const TYPE_OPTIONS = ['exa', 'deepseek', 'openai', 'jina', 'perplexity', 'tavily', 'firecrawl']
+export const TYPE_OPTIONS = ['exa', 'deepseek', 'openai', 'jina', 'perplexity', 'tavily', 'firecrawl', 'brave']

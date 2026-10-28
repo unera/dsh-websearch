@@ -776,3 +776,35 @@ test('Firecrawl searches and scrapes through v2', async () => {
   )
   assert.throws(() => mapFirecrawlResponse({ data: {} }), /no web results/)
 })
+
+test('Brave searches its own index with the subscription token header', async () => {
+  const { createProvider, mapBraveResponse } = await import('../index.mjs')
+  const calls = []
+  const provider = createProvider({ id: 'h-brv01', type: 'brave', apiKey: 'bsa-1', enabled: true }, undefined, {
+    fetchFn: async (url, init) => {
+      calls.push({ url, init })
+      return { ok: true, status: 200, json: async () => ({ web: { results: [
+        { url: 'https://a.example', title: 'A', description: 'about a', page_age: '2026-10-28T00:00:00' },
+        { url: 'https://a.example', title: 'dup' },
+        { url: 'https://b.example', title: 'B', age: '2 days ago' },
+      ] } }) }
+    },
+  })
+  assert.equal(provider.type, 'brave')
+  assert.equal(typeof provider.fetch, 'undefined')
+
+  const result = await provider.search({ query: 'курс доллара' })
+  assert.deepEqual(result.sources, [
+    { url: 'https://a.example', title: 'A', snippet: 'about a', publishedAt: '2026-10-28T00:00:00' },
+    { url: 'https://b.example', title: 'B', publishedAt: '2 days ago' },
+  ])
+  const [{ url, init }] = calls
+  assert.match(url, /^https:\/\/api\.search\.brave\.com\/res\/v1\/web\/search\?q=/)
+  assert.match(url, /&count=5$/)
+  assert.equal(init.headers['x-subscription-token'], 'bsa-1')
+  assert.equal(init.headers.authorization, undefined)
+
+  // The unwrapped shape is accepted too, and a payload with neither throws.
+  assert.deepEqual(mapBraveResponse({ results: [{ url: 'https://x.example' }] }).sources, [{ url: 'https://x.example' }])
+  assert.throws(() => mapBraveResponse({}), /no web results/)
+})
