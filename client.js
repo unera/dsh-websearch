@@ -45,7 +45,7 @@ var en = {
   "page.activeNone": "none",
   "page.useForSearch": "Use for search and page fetch",
   "form.type": "Provider",
-  "form.typeNone": "none",
+  "form.typeNone": "set a type",
   "form.typeLocked": "The provider type cannot be changed \u2014 add a new entry instead",
   "form.chooseHint": "Choose a web search provider.",
   "form.desc": "Description",
@@ -110,7 +110,7 @@ var ru = {
   "page.activeNone": "\u043D\u0435\u0442",
   "page.useForSearch": "\u0418\u0441\u043F\u043E\u043B\u044C\u0437\u043E\u0432\u0430\u0442\u044C \u0434\u043B\u044F \u043F\u043E\u0438\u0441\u043A\u0430 \u0438 \u0437\u0430\u0433\u0440\u0443\u0437\u043A\u0438 \u0441\u0442\u0440\u0430\u043D\u0438\u0446",
   "form.type": "\u041F\u0440\u043E\u0432\u0430\u0439\u0434\u0435\u0440",
-  "form.typeNone": "\u043D\u0435\u0442",
+  "form.typeNone": "\u0443\u0441\u0442\u0430\u043D\u043E\u0432\u0438\u0442\u0435 \u0442\u0438\u043F",
   "form.typeLocked": "\u0422\u0438\u043F \u043F\u0440\u043E\u0432\u0430\u0439\u0434\u0435\u0440\u0430 \u043D\u0435\u043B\u044C\u0437\u044F \u0438\u0437\u043C\u0435\u043D\u0438\u0442\u044C \u2014 \u0434\u043E\u0431\u0430\u0432\u044C\u0442\u0435 \u043D\u043E\u0432\u0443\u044E \u0437\u0430\u043F\u0438\u0441\u044C",
   "form.chooseHint": "\u0412\u044B\u0431\u0435\u0440\u0438\u0442\u0435 \u043F\u0440\u043E\u0432\u0430\u0439\u0434\u0435\u0440\u0430 \u043F\u043E\u0438\u0441\u043A\u0430 \u0432 \u0438\u043D\u0442\u0435\u0440\u043D\u0435\u0442\u0435.",
   "form.desc": "\u041E\u043F\u0438\u0441\u0430\u043D\u0438\u0435",
@@ -175,7 +175,7 @@ var zh = {
   "page.activeNone": "\u65E0",
   "page.useForSearch": "\u7528\u4E8E\u641C\u7D22\u548C\u6293\u53D6\u7F51\u9875",
   "form.type": "\u63D0\u4F9B\u65B9",
-  "form.typeNone": "\u65E0",
+  "form.typeNone": "\u8BF7\u9009\u62E9\u7C7B\u578B",
   "form.typeLocked": "\u63D0\u4F9B\u65B9\u7C7B\u578B\u4E0D\u53EF\u4FEE\u6539 \u2014 \u8BF7\u65B0\u589E\u4E00\u6761\u8BB0\u5F55",
   "form.chooseHint": "\u8BF7\u9009\u62E9\u7F51\u7EDC\u641C\u7D22\u7684\u63D0\u4F9B\u65B9\u3002",
   "form.desc": "\u63CF\u8FF0",
@@ -363,8 +363,7 @@ var CSS = `
 /* Side-by-side help plates: the left one carries the walkthrough, the right one the
  * registration control. Plain flex, no media query \u2014 the panel decides the width. */
 .dws-plates { align-items: stretch; display: flex; flex-wrap: nowrap; gap: 8px; width: 100%; }
-.dws-plate-side { flex: 0 0 30%; min-width: 0; }
-.dws-plate-main { flex: 1 1 0; min-width: 0; }
+.dws-plate-main { flex: 1 1 100%; min-width: 0; }
 /* Icon picker: a button that opens a list, since <select> cannot render images. */
 .dws-picker { min-width: 0; position: relative; }
 .dws-picker-button { align-items: center; cursor: pointer; display: flex; gap: 6px; text-align: left; }
@@ -601,11 +600,8 @@ function WebSearchPageInner(props) {
   ] });
   return (0, import_jsx_runtime.jsxs)("section", { style: styles.page, children: [
     (0, import_jsx_runtime.jsx)("h2", { style: styles.heading, children: t("nav.title") }),
+    (0, import_jsx_runtime.jsx)("p", { style: styles.helpTextBright, children: t("help.list") }),
     (0, import_jsx_runtime.jsxs)("div", { className: "dws-plates", children: [
-      (0, import_jsx_runtime.jsx)("div", { className: "dws-card dws-plate-side", children: (0, import_jsx_runtime.jsx)("p", {
-        style: styles.helpTextBright,
-        children: t("help.list")
-      }) }),
       (0, import_jsx_runtime.jsx)("div", { className: "dws-card dws-plate-main", children: (0, import_jsx_runtime.jsxs)("div", {
         style: { display: "flex", flexDirection: "column", gap: 8 },
         children: [
@@ -864,8 +860,8 @@ var styles = {
   slash: { opacity: 0.5 },
   activeLabel: { fontSize: 12, opacity: 0.75 },
   muted: { opacity: 0.6 },
-  testOk: { color: "#56d364", flex: "0 0 auto", fontSize: 13, fontWeight: 700 },
-  testFail: { color: "#f85149", flex: "0 0 auto", fontSize: 13, fontWeight: 700 },
+  testOk: { color: "#56d364" },
+  testFail: { color: "#f85149" },
   capsFull: { color: "#56d364", flex: "0 0 auto", fontSize: 11, whiteSpace: "nowrap" },
   capsPartial: { color: "#2ea043", flex: "0 0 auto", fontSize: 11, whiteSpace: "nowrap" },
   capsOff: { color: "#f85149", flex: "0 0 auto", fontSize: 11, opacity: 0.8, whiteSpace: "nowrap" },

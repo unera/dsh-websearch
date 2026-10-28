@@ -196,8 +196,7 @@ const CSS = `
 /* Side-by-side help plates: the left one carries the walkthrough, the right one the
  * registration control. Plain flex, no media query — the panel decides the width. */
 .dws-plates { align-items: stretch; display: flex; flex-wrap: nowrap; gap: 8px; width: 100%; }
-.dws-plate-side { flex: 0 0 30%; min-width: 0; }
-.dws-plate-main { flex: 1 1 0; min-width: 0; }
+.dws-plate-main { flex: 1 1 100%; min-width: 0; }
 /* Icon picker: a button that opens a list, since <select> cannot render images. */
 .dws-picker { min-width: 0; position: relative; }
 .dws-picker-button { align-items: center; cursor: pointer; display: flex; gap: 6px; text-align: left; }
@@ -488,11 +487,8 @@ function WebSearchPageInner(props) {
 
   return jsxs('section', { style: styles.page, children: [
     jsx('h2', { style: styles.heading, children: t('nav.title') }),
+    jsx('p', { style: styles.helpTextBright, children: t('help.list') }),
     jsxs('div', { className: 'dws-plates', children: [
-      jsx('div', { className: 'dws-card dws-plate-side', children: jsx('p', {
-        style: styles.helpTextBright,
-        children: t('help.list'),
-      }) }),
       jsx('div', { className: 'dws-card dws-plate-main', children: jsxs('div', {
         style: { display: 'flex', flexDirection: 'column', gap: 8 },
         children: [
@@ -745,8 +741,8 @@ const styles = {
   slash: { opacity: 0.5 },
   activeLabel: { fontSize: 12, opacity: 0.75 },
   muted: { opacity: 0.6 },
-  testOk: { color: '#56d364', flex: '0 0 auto', fontSize: 13, fontWeight: 700 },
-  testFail: { color: '#f85149', flex: '0 0 auto', fontSize: 13, fontWeight: 700 },
+  testOk: { color: '#56d364' },
+  testFail: { color: '#f85149' },
   capsFull: { color: '#56d364', flex: '0 0 auto', fontSize: 11, whiteSpace: 'nowrap' },
   capsPartial: { color: '#2ea043', flex: '0 0 auto', fontSize: 11, whiteSpace: 'nowrap' },
   capsOff: { color: '#f85149', flex: '0 0 auto', fontSize: 11, opacity: 0.8, whiteSpace: 'nowrap' },
