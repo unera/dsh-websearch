@@ -10,7 +10,8 @@ export const NS = 'dsh-websearch'
 export const en = {
   'nav.title': 'Web search',
   'help.list': 'Add the providers you need to the list below. A search walks them from top to bottom until they run out or a result is found.',
-  'help.registration': 'Registering makes this aggregator the active provider. If something here breaks, unregister: DSH falls back to its built-in providers and nothing is deleted. A restart applies either change.',
+  'help.registration': 'Registering makes this aggregator the active provider. If something here breaks, unregister: DSH falls back to its built-in providers and nothing is deleted.',
+  'help.restart': 'Either change applies after a restart.',
   'page.register': 'Register',
   'page.unregister': 'Unregister',
   'page.hint': 'Exa providers used for web search. Description is optional; a provider can be enabled once its API key is stored.',
@@ -79,7 +80,8 @@ export const en = {
 export const ru = {
   'nav.title': 'Веб-поиск',
   'help.list': 'Добавьте нужного провайдера в список ниже. При работе поиск будет перебирать их сверху вниз, пока они не исчерпаются или не будет достигнут результат.',
-  'help.registration': 'Регистрация делает агрегатор активным. Если здесь что-то сломается — отзовите регистрацию: DSH вернётся к встроенным провайдерам, ничего удалять не нужно. Любое из изменений применяется после перезапуска.',
+  'help.registration': 'Регистрация делает агрегатор активным. Если здесь что-то сломается — отзовите регистрацию: DSH вернётся к встроенным провайдерам, ничего удалять не нужно.',
+  'help.restart': 'Любое из изменений применяется после перезапуска.',
   'page.register': 'Зарегистрировать',
   'page.unregister': 'Отозвать регистрацию',
   'page.hint': 'Провайдеры Exa для поиска в интернете. Описание необязательно; включить провайдера можно после сохранения API-ключа.',
@@ -148,7 +150,8 @@ export const ru = {
 export const zh = {
   'nav.title': '网络搜索',
   'help.list': '将需要的提供方加入下面的列表。搜索时按从上到下的顺序依次尝试，直到用尽或得到结果。',
-  'help.registration': '注册后本聚合器成为活动提供方。若此处出问题，请撤销注册：DSH 会回退到内置提供方，不会删除任何内容。任一更改都需重启后生效。',
+  'help.registration': '注册后本聚合器成为活动提供方。若此处出问题，请撤销注册：DSH 会回退到内置提供方，不会删除任何内容。',
+  'help.restart': '任一更改都需重启后生效。',
   'page.register': '注册',
   'page.unregister': '撤销注册',
   'page.hint': '用于网络搜索的 Exa 提供方。描述可选；保存 API 密钥后才能启用提供方。',

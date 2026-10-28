@@ -184,7 +184,7 @@ const CSS = `
 .dws-actions { align-items: center; display: flex; flex-wrap: wrap; gap: 8px; }
 .dws-button {
   background: transparent; border: 1px solid rgba(127,127,127,.35); border-radius: 6px;
-  color: inherit; cursor: pointer; font: inherit; padding: 7px 12px; white-space: nowrap;
+  color: inherit; cursor: pointer; font: inherit; font-size: 11px; padding: 5px 10px; white-space: nowrap;
 }
 .dws-button:disabled { cursor: default; opacity: .4; }
 .dws-spin { animation: dws-spin 1s linear infinite; display: inline-block; }
@@ -483,20 +483,23 @@ function WebSearchPageInner(props) {
               : `${t('page.notRegistered')}${registered.reason || registered.step || t('page.unknown')}`,
           }),
           jsxs('div', { style: styles.row, children: [
-            jsx('button', {
-              className: 'dws-button',
-              disabled: busy || active === 'dsh-websearch',
-              onClick: () => run(() => call('/providers', { action: 'select' })),
-              children: t('page.register'),
-            }),
-            jsx('button', {
-              className: 'dws-button',
-              disabled: busy || active !== 'dsh-websearch',
-              onClick: () => run(() => call('/providers', { action: 'unregister' })),
-              children: t('page.unregister'),
-            }),
+            // Only one of the two can apply at a time, so only that one is drawn.
+            active === 'dsh-websearch'
+              ? jsx('button', {
+                className: 'dws-button',
+                disabled: busy,
+                onClick: () => run(() => call('/providers', { action: 'unregister' })),
+                children: t('page.unregister'),
+              })
+              : jsx('button', {
+                className: 'dws-button',
+                disabled: busy,
+                onClick: () => run(() => call('/providers', { action: 'select' })),
+                children: t('page.register'),
+              }),
           ] }),
           jsx('p', { style: styles.helpText, children: t('help.registration') }),
+          jsx('p', { style: styles.helpStrong, children: t('help.restart') }),
         ],
       }) }),
     ] }),
@@ -697,6 +700,7 @@ const styles = {
   page: { display: 'flex', flexDirection: 'column', gap: 14, maxWidth: 780, minWidth: 0 },
   heading: { margin: 0, fontSize: 20, fontWeight: 600 },
   helpText: { fontSize: 11, lineHeight: 1.45, margin: 0, opacity: 0.7 },
+  helpStrong: { fontSize: 11, fontWeight: 700, lineHeight: 1.45, margin: 0 },
   hint: { margin: 0, opacity: 0.7, fontSize: 13 },
   list: { display: 'flex', flexDirection: 'column', gap: 2, listStyle: 'none', margin: 0, padding: 0 },
   item: { alignItems: 'stretch', display: 'flex', flexDirection: 'column', gap: 2 },
