@@ -70,6 +70,7 @@ var en = {
   "list.down": "Move down",
   "list.delete": "Delete",
   "list.reset": "reset",
+  "caps.off": "off",
   "caps.searchOnly": "search only",
   "caps.searchFetch": "search and fetch",
   "caps.fetchOnly": "fetch only",
@@ -118,6 +119,7 @@ var ru = {
   "list.down": "\u041D\u0438\u0436\u0435",
   "list.delete": "\u0423\u0434\u0430\u043B\u0438\u0442\u044C",
   "list.reset": "\u0441\u0431\u0440\u043E\u0441\u0438\u0442\u044C",
+  "caps.off": "\u043E\u0442\u043A\u043B\u044E\u0447\u0435\u043D\u043E",
   "caps.searchOnly": "\u0442\u043E\u043B\u044C\u043A\u043E \u043F\u043E\u0438\u0441\u043A",
   "caps.searchFetch": "\u043F\u043E\u0438\u0441\u043A \u0438 \u0441\u043A\u0430\u0447\u0438\u0432\u0430\u043D\u0438\u0435",
   "caps.fetchOnly": "\u0442\u043E\u043B\u044C\u043A\u043E \u0441\u043A\u0430\u0447\u0438\u0432\u0430\u043D\u0438\u0435",
@@ -166,6 +168,7 @@ var zh = {
   "list.down": "\u4E0B\u79FB",
   "list.delete": "\u5220\u9664",
   "list.reset": "\u91CD\u7F6E",
+  "caps.off": "\u5DF2\u5173\u95ED",
   "caps.searchOnly": "\u4EC5\u641C\u7D22",
   "caps.searchFetch": "\u641C\u7D22\u4E0E\u6293\u53D6",
   "caps.fetchOnly": "\u4EC5\u6293\u53D6",
@@ -213,9 +216,10 @@ var PROVIDER_CAPS = {
   jina: { search: true, fetch: true },
   perplexity: { search: true, fetch: false }
 };
-var capsKey = (capabilities) => {
+var capsKey = (capabilities, enabled) => {
   const search = capabilities?.search !== false;
   const fetch2 = capabilities?.fetch === true;
+  if (enabled === false || !search && !fetch2) return "caps.off";
   if (search && fetch2) return "caps.searchFetch";
   return search ? "caps.searchOnly" : "caps.fetchOnly";
 };
@@ -544,7 +548,10 @@ function WebSearchPage(props) {
             }),
             (0, import_jsx_runtime.jsx)("span", { style: styles.kind, children: typeLabel(provider.type) }),
             provider.desc !== "" && (0, import_jsx_runtime.jsx)("span", { style: styles.desc, children: provider.desc }),
-            (0, import_jsx_runtime.jsx)("span", { style: styles.caps, children: t(capsKey(provider.capabilities)) }),
+            (0, import_jsx_runtime.jsx)("span", {
+              style: on ? styles.caps : styles.capsOff,
+              children: t(capsKey(provider.capabilities, on))
+            }),
             (0, import_jsx_runtime.jsxs)("span", { style: styles.actions, children: [
               (0, import_jsx_runtime.jsx)("button", { className: "dws-icon", disabled: busy, title: t("list.delete"), onClick: act({ action: "delete", index }), children: "\xD7" }),
               (0, import_jsx_runtime.jsx)("button", { className: "dws-icon", disabled: busy || index === 0, title: t("list.up"), onClick: act({ action: "move", index, delta: -1 }), children: "\u2191" }),
@@ -603,6 +610,7 @@ var styles = {
   activeLabel: { fontSize: 12, opacity: 0.75 },
   muted: { opacity: 0.6 },
   caps: { flex: "0 0 auto", fontSize: 11, opacity: 0.55, whiteSpace: "nowrap" },
+  capsOff: { flex: "0 0 auto", fontSize: 11, opacity: 0.4, whiteSpace: "nowrap" },
   row: { alignItems: "center", display: "flex", flexWrap: "wrap", gap: 8, minWidth: 0 },
   enabled: { whiteSpace: "nowrap", fontSize: 13 },
   enabledOff: { whiteSpace: "nowrap", fontSize: 13, opacity: 0.4 },

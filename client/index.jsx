@@ -53,9 +53,11 @@ const PROVIDER_CAPS = {
   perplexity: { search: true, fetch: false },
 }
 
-const capsKey = capabilities => {
+const capsKey = (capabilities, enabled) => {
   const search = capabilities?.search !== false
   const fetch = capabilities?.fetch === true
+  // Disabled, or allowed to do nothing at all: both read as switched off.
+  if (enabled === false || (!search && !fetch)) return 'caps.off'
   if (search && fetch) return 'caps.searchFetch'
   return search ? 'caps.searchOnly' : 'caps.fetchOnly'
 }
@@ -407,7 +409,10 @@ export function WebSearchPage(props) {
             }),
             jsx('span', { style: styles.kind, children: typeLabel(provider.type) }),
             provider.desc !== '' && jsx('span', { style: styles.desc, children: provider.desc }),
-            jsx('span', { style: styles.caps, children: t(capsKey(provider.capabilities)) }),
+            jsx('span', {
+              style: on ? styles.caps : styles.capsOff,
+              children: t(capsKey(provider.capabilities, on)),
+            }),
             jsxs('span', { style: styles.actions, children: [
               jsx('button', { className: 'dws-icon', disabled: busy, title: t('list.delete'), onClick: act({ action: 'delete', index }), children: '×' }),
               jsx('button', { className: 'dws-icon', disabled: busy || index === 0, title: t('list.up'), onClick: act({ action: 'move', index, delta: -1 }), children: '↑' }),
@@ -465,6 +470,7 @@ const styles = {
   activeLabel: { fontSize: 12, opacity: 0.75 },
   muted: { opacity: 0.6 },
   caps: { flex: '0 0 auto', fontSize: 11, opacity: 0.55, whiteSpace: 'nowrap' },
+  capsOff: { flex: '0 0 auto', fontSize: 11, opacity: 0.4, whiteSpace: 'nowrap' },
   row: { alignItems: 'center', display: 'flex', flexWrap: 'wrap', gap: 8, minWidth: 0 },
   enabled: { whiteSpace: 'nowrap', fontSize: 13 },
   enabledOff: { whiteSpace: 'nowrap', fontSize: 13, opacity: 0.4 },
