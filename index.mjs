@@ -1271,6 +1271,8 @@ export function unwrapProviders(value) {
 /** Namespace this plugin's entry registers. */
 export const SETTINGS_NAMESPACE = 'dsh-websearch'
 export const ROUTE_PREFIX = '/__ws'
+/** Page the self-test retrieves: a tiny endpoint that answers with plain text. */
+export const TEST_FETCH_URL = 'https://ifconfig.me'
 /** Id this plugin registers its aggregator under and the value `web.searchProvider` names. */
 export const SEARCH_PROVIDER_ID = 'dsh-websearch'
 /**
@@ -1658,6 +1660,47 @@ export function createProviderHandler(settings, credentials = null) {
         const target = index + Number(body.delta ?? 0)
         if (target < 0 || target >= providers.length) return json(response, 400, { error: 'move is out of range', code: 'move-out-of-range' })
         ;[providers[index], providers[target]] = [providers[target], providers[index]]
+      } else if (action === 'test') {
+        // Exercises the provider the way a real request would, so a wrong key or a
+        // moved endpoint shows up here instead of during a conversation.
+        const index = indexOf(providers, body.index)
+        const provider = providers[index]
+        const type = provider.type ?? 'exa'
+        const caps = PROVIDER_CAPABILITIES[type] ?? { search: true, fetch: true }
+        const wantsSearch = caps.search !== false && provider.useSearch !== false && provider.enabled !== false
+        const wantsFetch = caps.fetch === true && provider.useFetch !== false && provider.enabled !== false
+        const built = createProvider({
+          ...provider,
+          id: provider.id,
+          type,
+          credentialRef: provider.credentialRef || makeCredentialRef(type, provider.id ?? ''),
+        }, credentialsOf())
+        const runOne = async work => {
+          try {
+            await work()
+            return { ok: true }
+          } catch (error) {
+            return { ok: false, detail: String(error?.message ?? error).slice(0, 300) }
+          }
+        }
+        const search = wantsSearch
+          ? await runOne(async () => {
+            const result = await built.search({ query: 'what day is it today' })
+            if (!Array.isArray(result?.sources) || result.sources.length === 0) {
+              throw new Error('the provider returned no sources')
+            }
+          })
+          : { skipped: true }
+        const fetch = wantsFetch && typeof built.fetch === 'function'
+          ? await runOne(async () => {
+            const result = await built.fetch({ url: TEST_FETCH_URL })
+            const content = result?.body?.content
+            if (typeof content !== 'string' || content.trim() === '') {
+              throw new Error('the provider returned no text')
+            }
+          })
+          : { skipped: true }
+        return json(response, 200, { search, fetch })
       } else if (action === 'reset') {
         resetStats(providers[indexOf(providers, body.index)]?.id ?? '')
       } else if (action === 'select') {

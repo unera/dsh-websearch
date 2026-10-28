@@ -849,3 +849,18 @@ test('migration moves existing keys out of the document', async () => {
   // Nothing to move the second time.
   assert.equal(await migrateSecretsToCredentials({ settings, credentials }), 0)
 })
+
+test('the self-test exercises only what a provider is allowed to do', async () => {
+  const { createProviderHandler } = await import('../index.mjs')
+  const calls = []
+  const settings = fakeSettings([
+    { id: 'h-tst01', type: 'openai', apiKey: 'sk', enabled: true, useSearch: true, useFetch: false },
+  ])
+  const handler = createProviderHandler(settings)
+  const response = await callHandler(handler, { body: { action: 'test', index: 0 } })
+  assert.equal(response.status, 200)
+  // OpenAI has no fetch endpoint, so that half is reported as skipped, not failed.
+  assert.equal(response.payload.fetch.skipped, true)
+  assert.equal(typeof response.payload.search.ok, 'boolean')
+  calls.push(response.payload)
+})

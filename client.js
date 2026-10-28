@@ -71,6 +71,13 @@ var en = {
   "list.delete": "Delete",
   "list.deleteConfirm": "Delete the '{0}' provider (id {1})?",
   "list.reset": "reset",
+  "test.run": "Test all",
+  "test.running": "Testing\u2026",
+  "test.search": "search",
+  "test.fetch": "page fetch",
+  "test.ok": "ok",
+  "test.failed": "failed",
+  "test.skipped": "skipped",
   "error.unsupportedType": 'The host does not know the provider type "{0}" yet \u2014 restart it after installing the update',
   "error.keyRequired": "An API key is required",
   "error.indexOutOfRange": "That provider is no longer in the list",
@@ -127,6 +134,13 @@ var ru = {
   "list.delete": "\u0423\u0434\u0430\u043B\u0438\u0442\u044C",
   "list.deleteConfirm": "\u0412\u044B \u0443\u0432\u0435\u0440\u0435\u043D\u044B, \u0447\u0442\u043E \u0445\u043E\u0442\u0438\u0442\u0435 \u0443\u0434\u0430\u043B\u0438\u0442\u044C \xAB{0}\xBB \u0441 id={1}?",
   "list.reset": "\u0441\u0431\u0440\u043E\u0441\u0438\u0442\u044C",
+  "test.run": "\u043F\u0440\u043E\u0442\u0435\u0441\u0442\u0438\u0440\u043E\u0432\u0430\u0442\u044C \u0432\u0441\u0451",
+  "test.running": "\u041F\u0440\u043E\u0432\u0435\u0440\u044F\u044E\u2026",
+  "test.search": "\u043F\u043E\u0438\u0441\u043A",
+  "test.fetch": "\u0441\u043A\u0430\u0447\u0438\u0432\u0430\u043D\u0438\u0435",
+  "test.ok": "\u0443\u0441\u043F\u0435\u0448\u043D\u043E",
+  "test.failed": "\u043E\u0448\u0438\u0431\u043A\u0430",
+  "test.skipped": "\u043D\u0435 \u043F\u0440\u043E\u0432\u0435\u0440\u044F\u043B\u043E\u0441\u044C",
   "error.unsupportedType": "\u0425\u043E\u0441\u0442 \u0435\u0449\u0451 \u043D\u0435 \u0437\u043D\u0430\u0435\u0442 \u0442\u0438\u043F \xAB{0}\xBB \u2014 \u043F\u0435\u0440\u0435\u0437\u0430\u043F\u0443\u0441\u0442\u0438\u0442\u0435 \u0435\u0433\u043E \u043F\u043E\u0441\u043B\u0435 \u0443\u0441\u0442\u0430\u043D\u043E\u0432\u043A\u0438 \u043E\u0431\u043D\u043E\u0432\u043B\u0435\u043D\u0438\u044F",
   "error.keyRequired": "\u041D\u0443\u0436\u0435\u043D API-\u043A\u043B\u044E\u0447",
   "error.indexOutOfRange": "\u042D\u0442\u043E\u0433\u043E \u043F\u0440\u043E\u0432\u0430\u0439\u0434\u0435\u0440\u0430 \u0443\u0436\u0435 \u043D\u0435\u0442 \u0432 \u0441\u043F\u0438\u0441\u043A\u0435",
@@ -183,6 +197,13 @@ var zh = {
   "list.delete": "\u5220\u9664",
   "list.deleteConfirm": "\u786E\u5B9A\u8981\u5220\u9664\u201C{0}\u201D\uFF08id {1}\uFF09\u5417\uFF1F",
   "list.reset": "\u91CD\u7F6E",
+  "test.run": "\u6D4B\u8BD5\u5168\u90E8",
+  "test.running": "\u6D4B\u8BD5\u4E2D\u2026",
+  "test.search": "\u641C\u7D22",
+  "test.fetch": "\u6293\u53D6",
+  "test.ok": "\u6210\u529F",
+  "test.failed": "\u5931\u8D25",
+  "test.skipped": "\u672A\u6D4B\u8BD5",
   "error.unsupportedType": "\u5BBF\u4E3B\u5C1A\u4E0D\u8BA4\u8BC6\u63D0\u4F9B\u65B9\u7C7B\u578B\u201C{0}\u201D\u2014\u2014\u5B89\u88C5\u66F4\u65B0\u540E\u8BF7\u91CD\u542F",
   "error.keyRequired": "\u9700\u8981 API \u5BC6\u94A5",
   "error.indexOutOfRange": "\u8BE5\u63D0\u4F9B\u65B9\u5DF2\u4E0D\u5728\u5217\u8868\u4E2D",
@@ -339,6 +360,7 @@ function WebSearchPage(props) {
   const [providers, setProviders] = (0, import_react.useState)([]);
   const [selected, setSelected] = (0, import_react.useState)(null);
   const [pickerOpen, setPickerOpen] = (0, import_react.useState)(false);
+  const [tests, setTests] = (0, import_react.useState)({});
   const [draft, setDraft] = (0, import_react.useState)(emptyDraft);
   const [busy, setBusy] = (0, import_react.useState)(false);
   const [error, setError] = (0, import_react.useState)(null);
@@ -409,6 +431,29 @@ function WebSearchPage(props) {
       enabled: draft.enabled === true
     };
     run(() => call("/providers", editing ? { action: "save", index: selected, draft: body } : { action: "add", draft: { ...body, type: formType } })).then(reset);
+  };
+  const testLine = (labelKey, part) => {
+    if (part === void 0) return void 0;
+    if (part.skipped === true) return `${t(labelKey)}: ${t("test.skipped")}`;
+    return `${t(labelKey)}: ${part.ok === true ? t("test.ok") : `${t("test.failed")} \u2014 ${part.detail ?? ""}`}`;
+  };
+  const runTests = async () => {
+    for (const [index, provider] of providers.entries()) {
+      const caps = provider.capabilities ?? {};
+      const touchesSearch = caps.search !== false && provider.useSearch !== false;
+      const touchesFetch = caps.fetch === true && provider.useFetch !== false;
+      if (provider.enabled === false || !touchesSearch && !touchesFetch) continue;
+      setTests((previous) => ({ ...previous, [provider.id]: { running: true } }));
+      try {
+        const result = await call("/providers", { action: "test", index });
+        setTests((previous) => ({ ...previous, [provider.id]: result }));
+      } catch (e) {
+        setTests((previous) => ({
+          ...previous,
+          [provider.id]: { search: { ok: false, detail: String(e?.message ?? e) }, fetch: { skipped: true } }
+        }));
+      }
+    }
   };
   const act = (action) => (event) => {
     event.stopPropagation();
@@ -497,6 +542,14 @@ function WebSearchPage(props) {
       active === "dsh-websearch" && registered !== null && (0, import_jsx_runtime.jsx)("span", {
         style: registered.registered ? styles.green : styles.red,
         children: registered.registered ? t("page.registered") : `${t("page.notRegistered")}${registered.reason || registered.step || t("page.unknown")}`
+      }),
+      (0, import_jsx_runtime.jsx)("button", {
+        className: "dws-button",
+        disabled: busy || Object.values(tests).some((entry) => entry.running === true),
+        onClick: () => {
+          void runTests();
+        },
+        children: t("test.run")
       }),
       active !== "dsh-websearch" && (0, import_jsx_runtime.jsx)("button", {
         className: "dws-button",
@@ -646,6 +699,20 @@ function WebSearchPage(props) {
               style: capsStyle(capsKey(provider.capabilities, on)),
               children: t(capsKey(provider.capabilities, on))
             }),
+            (() => {
+              const tested = tests[provider.id];
+              if (tested === void 0) return null;
+              if (tested.running === true) {
+                return (0, import_jsx_runtime.jsx)("span", { className: "dws-spin", title: t("test.running"), children: "\u27F3" });
+              }
+              const lines = [testLine("test.search", tested.search), testLine("test.fetch", tested.fetch)].filter((line) => line !== void 0);
+              const failed = tested.search !== void 0 && tested.search.ok === false || tested.fetch !== void 0 && tested.fetch.ok === false;
+              return (0, import_jsx_runtime.jsx)("span", {
+                style: failed ? styles.testFail : styles.testOk,
+                title: lines.join("\n"),
+                children: failed ? "!" : "\u2713"
+              });
+            })(),
             (0, import_jsx_runtime.jsxs)("span", { style: styles.actions, children: [
               (0, import_jsx_runtime.jsx)("button", {
                 className: "dws-icon",
@@ -715,6 +782,8 @@ var styles = {
   slash: { opacity: 0.5 },
   activeLabel: { fontSize: 12, opacity: 0.75 },
   muted: { opacity: 0.6 },
+  testOk: { color: "#56d364", flex: "0 0 auto", fontSize: 13, fontWeight: 700 },
+  testFail: { color: "#f85149", flex: "0 0 auto", fontSize: 13, fontWeight: 700 },
   capsFull: { color: "#56d364", flex: "0 0 auto", fontSize: 11, whiteSpace: "nowrap" },
   capsPartial: { color: "#2ea043", flex: "0 0 auto", fontSize: 11, whiteSpace: "nowrap" },
   capsOff: { color: "#f85149", flex: "0 0 auto", fontSize: 11, opacity: 0.8, whiteSpace: "nowrap" },

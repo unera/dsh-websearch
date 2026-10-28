@@ -193,6 +193,8 @@ export function WebSearchPage(props) {
   const [providers, setProviders] = useState([])
   const [selected, setSelected] = useState(null)
   const [pickerOpen, setPickerOpen] = useState(false)
+  /** Self-test results per provider id: running, then ok or failed. */
+  const [tests, setTests] = useState({})
   const [draft, setDraft] = useState(emptyDraft)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
@@ -278,6 +280,33 @@ export function WebSearchPage(props) {
       ? { action: 'save', index: selected, draft: body }
       : { action: 'add', draft: { ...body, type: formType } }))
       .then(reset)
+  }
+
+  /** One line describing a half of the self-test. */
+  const testLine = (labelKey, part) => {
+    if (part === undefined) return undefined
+    if (part.skipped === true) return `${t(labelKey)}: ${t('test.skipped')}`
+    return `${t(labelKey)}: ${part.ok === true ? t('test.ok') : `${t('test.failed')} — ${part.detail ?? ''}`}`
+  }
+
+  /** Run every enabled provider's real search and fetch paths, one at a time. */
+  const runTests = async () => {
+    for (const [index, provider] of providers.entries()) {
+      const caps = provider.capabilities ?? {}
+      const touchesSearch = caps.search !== false && provider.useSearch !== false
+      const touchesFetch = caps.fetch === true && provider.useFetch !== false
+      if (provider.enabled === false || (!touchesSearch && !touchesFetch)) continue
+      setTests(previous => ({ ...previous, [provider.id]: { running: true } }))
+      try {
+        const result = await call('/providers', { action: 'test', index })
+        setTests(previous => ({ ...previous, [provider.id]: result }))
+      } catch (e) {
+        setTests(previous => ({
+          ...previous,
+          [provider.id]: { search: { ok: false, detail: String(e?.message ?? e) }, fetch: { skipped: true } },
+        }))
+      }
+    }
   }
 
   const act = action => (event) => {
@@ -391,6 +420,12 @@ export function WebSearchPage(props) {
         children: registered.registered
           ? t('page.registered')
           : `${t('page.notRegistered')}${registered.reason || registered.step || t('page.unknown')}`,
+      }),
+      jsx('button', {
+        className: 'dws-button',
+        disabled: busy || Object.values(tests).some(entry => entry.running === true),
+        onClick: () => { void runTests() },
+        children: t('test.run'),
       }),
       active !== 'dsh-websearch' && jsx('button', {
         className: 'dws-button', disabled: busy,
@@ -518,6 +553,22 @@ export function WebSearchPage(props) {
               style: capsStyle(capsKey(provider.capabilities, on)),
               children: t(capsKey(provider.capabilities, on)),
             }),
+            (() => {
+              const tested = tests[provider.id]
+              if (tested === undefined) return null
+              if (tested.running === true) {
+                return jsx('span', { className: 'dws-spin', title: t('test.running'), children: '⟳' })
+              }
+              const lines = [testLine('test.search', tested.search), testLine('test.fetch', tested.fetch)]
+                .filter(line => line !== undefined)
+              const failed = (tested.search !== undefined && tested.search.ok === false)
+                || (tested.fetch !== undefined && tested.fetch.ok === false)
+              return jsx('span', {
+                style: failed ? styles.testFail : styles.testOk,
+                title: lines.join('\n'),
+                children: failed ? '!' : '✓',
+              })
+            })(),
             jsxs('span', { style: styles.actions, children: [
               jsx('button', {
                 className: 'dws-icon', disabled: busy, title: t('list.delete'),
@@ -589,6 +640,8 @@ const styles = {
   slash: { opacity: 0.5 },
   activeLabel: { fontSize: 12, opacity: 0.75 },
   muted: { opacity: 0.6 },
+  testOk: { color: '#56d364', flex: '0 0 auto', fontSize: 13, fontWeight: 700 },
+  testFail: { color: '#f85149', flex: '0 0 auto', fontSize: 13, fontWeight: 700 },
   capsFull: { color: '#56d364', flex: '0 0 auto', fontSize: 11, whiteSpace: 'nowrap' },
   capsPartial: { color: '#2ea043', flex: '0 0 auto', fontSize: 11, whiteSpace: 'nowrap' },
   capsOff: { color: '#f85149', flex: '0 0 auto', fontSize: 11, opacity: 0.8, whiteSpace: 'nowrap' },
