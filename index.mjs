@@ -1500,6 +1500,9 @@ export async function migrateSecretsToCredentials({ settings, credentials }) {
  * @returns An HTTP handler for {@link ROUTE_PREFIX}.
  */
 export function createProviderHandler(settings, credentials = null) {
+  // The credentials service may mount after this handler is built, so it is read
+  // through a getter instead of captured once.
+  const credentialsOf = () => (typeof credentials === 'function' ? credentials() : credentials)
   const read = () => {
     const descriptor = settings.describe().find(entry => String(entry.ns) === SETTINGS_NAMESPACE)
     const value = descriptor?.value
@@ -1509,18 +1512,20 @@ export function createProviderHandler(settings, credentials = null) {
   /** Whether a credential reference already holds a value. */
   const keyConfigured = async ref => {
     if (String(ref) === '') return false
-    if (typeof credentials?.describe !== 'function') return false
+    const store = credentialsOf()
+    if (typeof store?.describe !== 'function') return false
     try {
-      return (await credentials.describe(credentialRef(String(ref))))?.configured === true
+      return (await store.describe(credentialRef(String(ref))))?.configured === true
     } catch {
       return false
     }
   }
   /** Keep a key in the credentials store; configuration never holds it. */
   const storeKey = async (ref, value) => {
-    if (typeof credentials?.set !== 'function') return false
+    const store = credentialsOf()
+    if (typeof store?.set !== 'function') return false
     try {
-      await credentials.set(credentialRef(String(ref)), value)
+      await store.set(credentialRef(String(ref)), value)
       return true
     } catch {
       return false
@@ -1733,7 +1738,7 @@ export function apply(ctx, config = {}) {
     const settings = scoped.settings ?? scoped.get?.('settings')
     const server = scoped.webServer ?? scoped.get?.('webServer')
     if (typeof settings?.update !== 'function' || typeof server?.register !== 'function') return undefined
-    const handler = createProviderHandler(settings, shared.credentials)
+    const handler = createProviderHandler(settings, () => shared.credentials)
     return scoped.effect(() => {
       const unregister = server.register({ kind: 'prefix', path: ROUTE_PREFIX, handler })
       return () => { try { unregister?.() } catch { /* already gone */ } }
