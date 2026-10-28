@@ -162,7 +162,7 @@ const CSS = `
 }
 .dws-icon {
   background: transparent; border: 1px solid rgba(127,127,127,.35); border-radius: 6px;
-  color: inherit; cursor: pointer; font: inherit; line-height: 1; padding: 4px 8px;
+  color: inherit; cursor: pointer; font: inherit; font-size: 12px; line-height: 1; padding: 3px 6px;
 }
 .dws-icon:disabled { cursor: default; opacity: .35; }
 .dws-row { align-items: center; border-radius: 8px; cursor: pointer; display: flex; gap: 8px; padding: 4px 6px; }
@@ -488,28 +488,27 @@ function WebSearchPageInner(props) {
 
   return jsxs('section', { style: styles.page, children: [
     jsx('h2', { style: styles.heading, children: t('nav.title') }),
-    jsx('p', { style: styles.hint, children: t('page.hint') }),
     jsxs('div', { className: 'dws-plates', children: [
       jsx('div', { className: 'dws-card dws-plate-side', children: jsx('p', {
-        style: styles.helpText,
+        style: styles.helpTextBright,
         children: t('help.list'),
       }) }),
       jsx('div', { className: 'dws-card dws-plate-main', children: jsxs('div', {
         style: { display: 'flex', flexDirection: 'column', gap: 8 },
         children: [
-          jsx('span', {
-            style: styles.activeLabel,
-            children: active === 'dsh-websearch'
-              ? t('page.activeSelf')
-              : `${t('page.activeOther')}${active === '' ? t('page.activeNone') : active}`,
-          }),
-          active === 'dsh-websearch' && registered !== null && jsx('span', {
-            style: registered.registered ? styles.green : styles.red,
-            children: registered.registered
-              ? t('page.registered')
-              : `${t('page.notRegistered')}${registered.reason || registered.step || t('page.unknown')}`,
-          }),
-          jsxs('div', { style: styles.row, children: [
+          jsxs('div', { style: styles.statusRow, children: [
+            jsx('span', {
+              style: styles.activeLabel,
+              children: active === 'dsh-websearch'
+                ? t('page.activeSelf')
+                : `${t('page.activeOther')}${active === '' ? t('page.activeNone') : active}`,
+            }),
+            active === 'dsh-websearch' && registered !== null && jsx('span', {
+              style: registered.registered ? styles.green : styles.red,
+              children: registered.registered
+                ? t('page.registered')
+                : `${t('page.notRegistered')}${registered.reason || registered.step || t('page.unknown')}`,
+            }),
             // Only one of the two can apply at a time, so only that one is drawn.
             active === 'dsh-websearch'
               ? jsx('button', {
@@ -728,6 +727,8 @@ const styles = {
   heading: { margin: 0, fontSize: 20, fontWeight: 600 },
   helpText: { fontSize: 11, lineHeight: 1.45, margin: 0, opacity: 0.7 },
   helpStrong: { fontSize: 11, fontWeight: 700, lineHeight: 1.45, margin: 0 },
+  helpTextBright: { fontSize: 11, lineHeight: 1.45, margin: 0, opacity: 1 },
+  statusRow: { alignItems: 'center', display: 'flex', flexWrap: 'wrap', gap: 8 },
   hint: { margin: 0, opacity: 0.7, fontSize: 13 },
   list: { display: 'flex', flexDirection: 'column', gap: 2, listStyle: 'none', margin: 0, padding: 0 },
   item: { alignItems: 'stretch', display: 'flex', flexDirection: 'column', gap: 2 },
