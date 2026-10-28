@@ -767,8 +767,18 @@ export function apply(ctx, config = {}) {
     })
   })
   ctx.inject(['web'], scoped => {
-    const credentials = scoped.get?.('credentials') ?? scoped.credentials ?? null
-    const settings = scoped.get?.('settings') ?? scoped.settings
+    // `ctx.get` may refuse a service this fiber did not declare, so a lookup that
+    // throws must not take the whole registration down with it.
+    const service = name => {
+      try {
+        const viaGet = typeof scoped.get === 'function' ? scoped.get(name) : undefined
+        return viaGet ?? scoped[name] ?? null
+      } catch {
+        return scoped[name] ?? null
+      }
+    }
+    const credentials = service('credentials')
+    const settings = service('settings')
     /** The current provider objects, in list order, freshly built for this call. */
     const liveProviders = () => {
       let configs = fallbackConfigs
@@ -781,10 +791,24 @@ export function apply(ctx, config = {}) {
         .filter(provider => provider.enabled !== false)
         .map(provider => countProvider(createProvider(provider, credentials)))
     }
-    const dispose = scoped.web.registerSearchProvider(createSearchAggregator(liveProviders))
+    let dispose
+    try {
+      dispose = scoped.web.registerSearchProvider(createSearchAggregator(liveProviders))
+    } catch (error) {
+      runtimeState.registered = false
+      runtimeState.reason = `registerSearchProvider failed: ${String(error?.message ?? error)}`
+      throw error
+    }
     // Every provider that can search also retrieves pages; the same live list serves
     // both capabilities, so one configured key covers `web_search` and `web_fetch`.
-    const disposeFetch = scoped.web.registerFetchProvider(createFetchAggregator(liveProviders))
+    let disposeFetch
+    try {
+      disposeFetch = scoped.web.registerFetchProvider(createFetchAggregator(liveProviders))
+    } catch (error) {
+      runtimeState.registered = false
+      runtimeState.reason = `registerFetchProvider failed: ${String(error?.message ?? error)}`
+      throw error
+    }
     runtimeState.registered = true
     runtimeState.reason = ''
     return () => { runtimeState.registered = false; dispose?.(); disposeFetch?.() }
