@@ -808,3 +808,44 @@ test('Brave searches its own index with the subscription token header', async ()
   assert.deepEqual(mapBraveResponse({ results: [{ url: 'https://x.example' }] }).sources, [{ url: 'https://x.example' }])
   assert.throws(() => mapBraveResponse({}), /no web results/)
 })
+
+test('keys are written to the credentials store, never kept in the document', async () => {
+  const { createProviderHandler } = await import('../index.mjs')
+  const store = new Map()
+  const credentials = {
+    describe: async ref => ({ configured: store.has(ref) }),
+    set: async (ref, value) => { store.set(ref, value) },
+  }
+  const settings = fakeSettings([])
+  const handler = createProviderHandler(settings, credentials)
+
+  const added = await callHandler(handler, { body: { action: 'add', draft: { type: 'brave', apiKey: 'bsa-9' } } })
+  assert.equal(added.status, 200)
+  assert.equal(settings.state.providers[0].apiKey, '')
+  assert.deepEqual([...store.values()], ['bsa-9'])
+  assert.equal(added.payload.providers[0].keySet, true)
+
+  // Saving a new key replaces the stored one and still leaves the document empty.
+  await callHandler(handler, { body: { action: 'save', index: 0, draft: { desc: '', enabled: true, apiKey: 'bsa-10' } } })
+  assert.equal(settings.state.providers[0].apiKey, '')
+  assert.equal([...store.values()][0], 'bsa-10')
+})
+
+test('migration moves existing keys out of the document', async () => {
+  const { migrateSecretsToCredentials } = await import('../index.mjs')
+  const store = new Map()
+  const credentials = {
+    describe: async ref => ({ configured: store.has(ref) }),
+    set: async (ref, value) => { store.set(ref, value) },
+  }
+  const settings = fakeSettings([
+    { id: 'h-mig01', type: 'exa', apiKey: 'exa-key', credentialRef: 'DSH_WEBSEARCH_EXA_H_MIG01', enabled: true },
+    { id: 'h-mig02', type: 'brave', apiKey: '', credentialRef: 'DSH_WEBSEARCH_BRAVE_H_MIG02', enabled: true },
+  ])
+
+  assert.equal(await migrateSecretsToCredentials({ settings, credentials }), 1)
+  assert.equal(store.get('DSH_WEBSEARCH_EXA_H_MIG01'), 'exa-key')
+  assert.equal(settings.state.providers[0].apiKey, '')
+  // Nothing to move the second time.
+  assert.equal(await migrateSecretsToCredentials({ settings, credentials }), 0)
+})

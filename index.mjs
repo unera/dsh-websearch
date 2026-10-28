@@ -1316,7 +1316,7 @@ const ZERO_STATS = Object.freeze({
 })
 
 /** What this process actually registered with the `web` seam; the page reports it. */
-export const runtimeState = { registered: false, reason: '', step: 'plugin loaded' }
+export const runtimeState = { registered: false, reason: '', step: 'plugin loaded', secretsMoved: 0 }
 
 /** Keep only the counter fields, so a hand-edited file cannot poison the page. */
 function sanitizeStats(value) {
@@ -1428,7 +1428,7 @@ export function countProvider(provider) {
 
 const PROVIDER_ID = /^[A-Za-z][A-Za-z0-9_-]{5,7}$/
 /** What the page may see of one provider: never the key itself. */
-function publicProvider(provider, index) {
+function publicProvider(provider, index, keySet = false) {
   return {
     index,
     id: provider.id ?? '',
@@ -1436,7 +1436,8 @@ function publicProvider(provider, index) {
     desc: provider.desc ?? '',
     model: provider.model ?? '',
     enabled: provider.enabled !== false,
-    keySet: String(provider.apiKey ?? '').trim() !== '',
+    // Either the credentials store holds it, or an older document still carries it.
+    keySet: keySet || String(provider.apiKey ?? '').trim() !== '',
     capabilities: {
       search: (PROVIDER_CAPABILITIES[provider.type ?? 'exa'] ?? { search: true }).search !== false
         && provider.useSearch !== false,
@@ -1445,6 +1446,46 @@ function publicProvider(provider, index) {
     },
     stats: statsOf(provider.id),
   }
+}
+
+
+/**
+ * Move provider keys out of the configuration document and into the credentials
+ * store, which is where DSH keeps secrets.
+ *
+ * The configuration holds `apiKey` as a plain string, so it lands in the profile
+ * patch file in the clear. For every provider that still carries one, the key is
+ * written to the credential reference it already names (skipped when that
+ * reference is already configured) and then blanked in the document. A provider
+ * whose key cannot be written keeps its value, so nothing is lost.
+ *
+ * @param options.settings - Host settings service owning this plugin's namespace.
+ * @param options.credentials - Credentials service; without it nothing happens.
+ * @returns How many keys were moved.
+ */
+export async function migrateSecretsToCredentials({ settings, credentials }) {
+  if (typeof credentials?.set !== 'function' || typeof settings?.describe !== 'function') return 0
+  const descriptor = settings.describe().find(entry => String(entry.ns) === SETTINGS_NAMESPACE)
+  const providers = descriptor?.value?.providers
+  if (!Array.isArray(providers)) return 0
+  const next = providers.map(provider => ({ ...provider }))
+  let moved = 0
+  for (const provider of next) {
+    const key = String(provider.apiKey ?? '').trim()
+    if (key === '') continue
+    const ref = credentialRef(provider.credentialRef ?? makeCredentialRef(provider.type ?? 'exa', provider.id ?? ''))
+    try {
+      const info = await credentials.describe(ref)
+      if (info?.configured !== true) await credentials.set(ref, key)
+      provider.apiKey = ''
+      provider.credentialRef = String(ref)
+      moved += 1
+    } catch {
+      // Leave the value in place: a store that refuses must not lose the key.
+    }
+  }
+  if (moved > 0) await settings.update(SETTINGS_NAMESPACE, { providers: next })
+  return moved
 }
 
 /**
@@ -1458,13 +1499,33 @@ function publicProvider(provider, index) {
  * @param settings - host settings service owning the plugin's namespace.
  * @returns An HTTP handler for {@link ROUTE_PREFIX}.
  */
-export function createProviderHandler(settings) {
+export function createProviderHandler(settings, credentials = null) {
   const read = () => {
     const descriptor = settings.describe().find(entry => String(entry.ns) === SETTINGS_NAMESPACE)
     const value = descriptor?.value
     return Array.isArray(value?.providers) ? value.providers.map(provider => ({ ...provider })) : []
   }
   const write = providers => settings.update(SETTINGS_NAMESPACE, { providers })
+  /** Whether a credential reference already holds a value. */
+  const keyConfigured = async ref => {
+    if (String(ref) === '') return false
+    if (typeof credentials?.describe !== 'function') return false
+    try {
+      return (await credentials.describe(credentialRef(String(ref))))?.configured === true
+    } catch {
+      return false
+    }
+  }
+  /** Keep a key in the credentials store; configuration never holds it. */
+  const storeKey = async (ref, value) => {
+    if (typeof credentials?.set !== 'function') return false
+    try {
+      await credentials.set(credentialRef(String(ref)), value)
+      return true
+    } catch {
+      return false
+    }
+  }
   /** The provider id the `web` seam currently selects, if any. */
   const selectedSearchProvider = () => {
     const descriptor = settings.describe().find(entry => String(entry.ns) === WEB_NAMESPACE)
@@ -1509,13 +1570,19 @@ export function createProviderHandler(settings) {
 
       if (request.method === 'GET' && path === '/state') {
         const providers = read()
+        const view = []
+        for (const [index, provider] of providers.entries()) {
+          const ref = provider.credentialRef ?? makeCredentialRef(provider.type ?? 'exa', provider.id ?? '')
+          view.push(publicProvider(provider, index, await keyConfigured(ref)))
+        }
         return json(response, 200, {
-          providers: providers.map(publicProvider),
+          providers: view,
           searchProvider: selectedSearchProvider(),
           providerId: SEARCH_PROVIDER_ID,
           registered: runtimeState.registered,
           reason: runtimeState.reason,
           step: runtimeState.step,
+          secretsMoved: runtimeState.secretsMoved,
         })
       }
       if (request.method !== 'POST') return json(response, 405, { error: 'method not allowed' })
@@ -1536,13 +1603,17 @@ export function createProviderHandler(settings) {
         const apiKey = String(draft.apiKey ?? '').trim()
         if (apiKey === '') return json(response, 400, { error: 'an API key is required', code: 'key-required' })
         const id = generateProviderId(providers)
+        const credentialRefOf = makeCredentialRef(type, id)
+        // Without a credentials seam there is nowhere else to keep the key, so it
+        // stays in the document rather than being lost.
+        const stored = await storeKey(credentialRefOf, apiKey)
         providers.unshift({
           id,
           type,
           desc: String(draft.desc ?? '').trim(),
           model: String(draft.model ?? '').trim(),
-          apiKey,
-          credentialRef: makeCredentialRef(type, id),
+          apiKey: stored ? '' : apiKey,
+          credentialRef: credentialRefOf,
           enabled: draft.enabled !== false,
           useSearch: typeSearch !== false,
           useFetch: typeFetch === true && draft.useFetch !== false,
@@ -1563,8 +1634,16 @@ export function createProviderHandler(settings) {
           useFetch: typeFetch === true && draft.useFetch !== false,
         }
         const apiKey = String(draft.apiKey ?? '').trim()
-        // An empty key field means "keep the stored one", not "erase it".
-        if (apiKey !== '') next.apiKey = apiKey
+        // An empty key field means "keep the stored one", not "erase it"; a new one
+        // goes to the credentials store, never into the configuration document.
+        // Only a supplied key is touched: a blank field means "keep whatever is
+        // stored", never "erase it".
+        if (apiKey !== '') {
+          const ref = next.credentialRef ?? makeCredentialRef(next.type ?? 'exa', next.id ?? '')
+          const keyStored = await storeKey(ref, apiKey)
+          next.apiKey = keyStored ? '' : apiKey
+        }
+        next.credentialRef = next.credentialRef ?? makeCredentialRef(next.type ?? 'exa', next.id ?? '')
         providers[index] = next
       } else if (action === 'delete') {
         const [removed] = providers.splice(indexOf(providers, body.index), 1)
@@ -1592,8 +1671,13 @@ export function createProviderHandler(settings) {
 
       if (action !== 'select') await write(providers)
       const after = read()
+      const view = []
+      for (const [index, provider] of after.entries()) {
+        const ref = provider.credentialRef ?? makeCredentialRef(provider.type ?? 'exa', provider.id ?? '')
+        view.push(publicProvider(provider, index, await keyConfigured(ref)))
+      }
       return json(response, 200, {
-        providers: after.map(publicProvider),
+        providers: view,
         searchProvider: selectedSearchProvider(),
         providerId: SEARCH_PROVIDER_ID,
       })
@@ -1618,6 +1702,17 @@ export function apply(ctx, config = {}) {
   })
   ctx.inject(['credentials'], child => {
     shared.credentials = child.credentials
+    // One-time move of keys that older builds wrote into the configuration file.
+    child.effect(() => {
+      const timer = setTimeout(() => {
+        migrateSecretsToCredentials({ settings: shared.settings, credentials: shared.credentials })
+          .then(moved => {
+            if (moved > 0) runtimeState.secretsMoved = moved
+          })
+          .catch(() => { /* a failed migration leaves the keys where they are */ })
+      }, 0)
+      return () => clearTimeout(timer)
+    }, 'dsh-websearch: secret migration')
   })
   // The composed config is only the fallback: the settings document is the truth
   // once it exists, and it is re-read on every search so a reordered list takes
@@ -1638,7 +1733,7 @@ export function apply(ctx, config = {}) {
     const settings = scoped.settings ?? scoped.get?.('settings')
     const server = scoped.webServer ?? scoped.get?.('webServer')
     if (typeof settings?.update !== 'function' || typeof server?.register !== 'function') return undefined
-    const handler = createProviderHandler(settings)
+    const handler = createProviderHandler(settings, shared.credentials)
     return scoped.effect(() => {
       const unregister = server.register({ kind: 'prefix', path: ROUTE_PREFIX, handler })
       return () => { try { unregister?.() } catch { /* already gone */ } }
