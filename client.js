@@ -251,6 +251,11 @@ var capsKey = (capabilities, enabled) => {
   return search ? "caps.searchOnly" : "caps.fetchOnly";
 };
 var iconOf = (type) => ICONS[type ?? "exa"] ?? null;
+var capsStyle = (key) => {
+  if (key === "caps.off") return styles.capsOff;
+  if (key === "caps.searchFetch") return styles.capsFull;
+  return styles.capsPartial;
+};
 var CSS = `
 .dws-field {
   background: transparent; border: 1px solid rgba(127,127,127,.35); border-radius: 6px;
@@ -596,9 +601,11 @@ function WebSearchPage(props) {
               style: { flex: "0 0 auto", opacity: on ? 1 : 0.35 }
             }),
             (0, import_jsx_runtime.jsx)("span", { style: styles.kind, children: typeLabel(provider.type) }),
-            provider.desc !== "" && (0, import_jsx_runtime.jsx)("span", { style: styles.desc, children: provider.desc }),
+            // Always present, empty or not: it is the flexible column that pushes the
+            // capability label and the actions into their fixed places.
+            (0, import_jsx_runtime.jsx)("span", { style: styles.desc, children: provider.desc }),
             (0, import_jsx_runtime.jsx)("span", {
-              style: on ? styles.caps : styles.capsOff,
+              style: capsStyle(capsKey(provider.capabilities, on)),
               children: t(capsKey(provider.capabilities, on))
             }),
             (0, import_jsx_runtime.jsxs)("span", { style: styles.actions, children: [
@@ -670,8 +677,9 @@ var styles = {
   slash: { opacity: 0.5 },
   activeLabel: { fontSize: 12, opacity: 0.75 },
   muted: { opacity: 0.6 },
-  caps: { flex: "0 0 auto", fontSize: 11, opacity: 0.55, whiteSpace: "nowrap" },
-  capsOff: { flex: "0 0 auto", fontSize: 11, opacity: 0.4, whiteSpace: "nowrap" },
+  capsFull: { color: "#56d364", flex: "0 0 auto", fontSize: 11, whiteSpace: "nowrap" },
+  capsPartial: { color: "#2ea043", flex: "0 0 auto", fontSize: 11, whiteSpace: "nowrap" },
+  capsOff: { color: "#f85149", flex: "0 0 auto", fontSize: 11, opacity: 0.8, whiteSpace: "nowrap" },
   row: { alignItems: "center", display: "flex", flexWrap: "wrap", gap: 8, minWidth: 0 },
   enabled: { whiteSpace: "nowrap", fontSize: 13 },
   enabledOff: { whiteSpace: "nowrap", fontSize: 13, opacity: 0.4 },

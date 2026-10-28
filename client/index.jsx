@@ -72,6 +72,18 @@ const capsKey = (capabilities, enabled) => {
 }
 const iconOf = type => ICONS[type ?? 'exa'] ?? null
 
+/**
+ * Colour for a capability label: red when nothing runs, bright green when the
+ * provider covers both directions, and a plain green when it covers one.
+ * @param key - Dictionary key naming the state.
+ * @returns Style for that state.
+ */
+const capsStyle = key => {
+  if (key === 'caps.off') return styles.capsOff
+  if (key === 'caps.searchFetch') return styles.capsFull
+  return styles.capsPartial
+}
+
 /*
  * Field chrome lives in a stylesheet rather than inline styles, because the
  * secret input needs `:autofill` rules: Firefox paints an autofilled field with
@@ -451,9 +463,11 @@ export function WebSearchPage(props) {
               style: { flex: '0 0 auto', opacity: on ? 1 : 0.35 },
             }),
             jsx('span', { style: styles.kind, children: typeLabel(provider.type) }),
-            provider.desc !== '' && jsx('span', { style: styles.desc, children: provider.desc }),
+            // Always present, empty or not: it is the flexible column that pushes the
+            // capability label and the actions into their fixed places.
+            jsx('span', { style: styles.desc, children: provider.desc }),
             jsx('span', {
-              style: on ? styles.caps : styles.capsOff,
+              style: capsStyle(capsKey(provider.capabilities, on)),
               children: t(capsKey(provider.capabilities, on)),
             }),
             jsxs('span', { style: styles.actions, children: [
@@ -527,8 +541,9 @@ const styles = {
   slash: { opacity: 0.5 },
   activeLabel: { fontSize: 12, opacity: 0.75 },
   muted: { opacity: 0.6 },
-  caps: { flex: '0 0 auto', fontSize: 11, opacity: 0.55, whiteSpace: 'nowrap' },
-  capsOff: { flex: '0 0 auto', fontSize: 11, opacity: 0.4, whiteSpace: 'nowrap' },
+  capsFull: { color: '#56d364', flex: '0 0 auto', fontSize: 11, whiteSpace: 'nowrap' },
+  capsPartial: { color: '#2ea043', flex: '0 0 auto', fontSize: 11, whiteSpace: 'nowrap' },
+  capsOff: { color: '#f85149', flex: '0 0 auto', fontSize: 11, opacity: 0.8, whiteSpace: 'nowrap' },
   row: { alignItems: 'center', display: 'flex', flexWrap: 'wrap', gap: 8, minWidth: 0 },
   enabled: { whiteSpace: 'nowrap', fontSize: 13 },
   enabledOff: { whiteSpace: 'nowrap', fontSize: 13, opacity: 0.4 },
