@@ -739,8 +739,16 @@ export function createProviderHandler(settings) {
 }
 
 export function apply(ctx, config = {}) {
+  // Services a fiber may read must be declared in its own `inject`: `ctx.get` on
+  // anything else throws "cannot get property ... without inject". So they are
+  // captured here, from scopes that do declare them.
+  const shared = { settings: null, credentials: null }
   ctx.inject(['settings'], child => {
+    shared.settings = child.settings
     child.effect(() => child.settings.configure({ auto: true }, ctx.fiber))
+  })
+  ctx.inject(['credentials'], child => {
+    shared.credentials = child.credentials
   })
   // The composed config is only the fallback: the settings document is the truth
   // once it exists, and it is re-read on every search so a reordered list takes
