@@ -351,6 +351,8 @@ var CSS = `
   color: inherit; cursor: pointer; font: inherit; padding: 7px 12px; white-space: nowrap;
 }
 .dws-button:disabled { cursor: default; opacity: .4; }
+.dws-spin { animation: dws-spin 1s linear infinite; display: inline-block; }
+@keyframes dws-spin { from { transform: rotate(0turn); } to { transform: rotate(1turn); } }
 `;
 function mountStyle() {
   if (typeof document === "undefined") return;
@@ -492,12 +494,6 @@ function WebSearchPageInner(props) {
       }
     }
   };
-  const runTests = async () => {
-    for (const [index, provider] of providers.entries()) {
-      if (!canTest(provider)) continue;
-      await runOneTest(index, provider);
-    }
-  };
   const act = (action) => (event) => {
     event.stopPropagation();
     run(() => call("/providers", action));
@@ -585,14 +581,6 @@ function WebSearchPageInner(props) {
       active === "dsh-websearch" && registered !== null && (0, import_jsx_runtime.jsx)("span", {
         style: registered.registered ? styles.green : styles.red,
         children: registered.registered ? t("page.registered") : `${t("page.notRegistered")}${registered.reason || registered.step || t("page.unknown")}`
-      }),
-      (0, import_jsx_runtime.jsx)("button", {
-        className: "dws-button",
-        disabled: busy || Object.values(tests).some((entry) => entry.running === true),
-        onClick: () => {
-          void runTests();
-        },
-        children: t("test.run")
       }),
       active !== "dsh-websearch" && (0, import_jsx_runtime.jsx)("button", {
         className: "dws-button",
