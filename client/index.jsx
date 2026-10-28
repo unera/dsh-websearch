@@ -487,7 +487,6 @@ function WebSearchPageInner(props) {
 
   return jsxs('section', { style: styles.page, children: [
     jsx('h2', { style: styles.heading, children: t('nav.title') }),
-    jsx('p', { style: styles.helpTextBright, children: t('help.list') }),
     jsxs('div', { className: 'dws-plates', children: [
       jsx('div', { className: 'dws-card dws-plate-main', children: jsxs('div', {
         style: { display: 'flex', flexDirection: 'column', gap: 8 },
@@ -537,7 +536,7 @@ function WebSearchPageInner(props) {
             placeholder: t('form.descPlaceholder'), spellCheck: false, autoComplete: 'off', disabled: busy,
             onChange: e => setDraft({ ...draft, desc: e.target.value }),
           })
-          : jsx('span', { className: 'dws-note', children: t('form.chooseHint') }),
+          : jsx('span', { style: styles.helpTextBright, children: t('help.list') }),
         showingForm && jsx('textarea', {
           // A textarea cannot be autofilled, so Firefox's password manager stops
           // offering to save a search key. It is not masked: a textarea cannot be,

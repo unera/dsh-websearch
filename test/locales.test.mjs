@@ -26,7 +26,7 @@ test('the three languages are actually different where it matters', () => {
   assert.equal(DICTIONARIES.ru['nav.title'], 'Веб-поиск')
   assert.equal(DICTIONARIES.zh['nav.title'], '网络搜索')
   assert.equal(DICTIONARIES.en['nav.title'], 'Web search')
-  assert.notEqual(DICTIONARIES.ru['form.chooseHint'], DICTIONARIES.en['form.chooseHint'])
+  assert.notEqual(DICTIONARIES.ru['help.list'], DICTIONARIES.en['help.list'])
 })
 
 test('the namespace and the type table are stable', () => {

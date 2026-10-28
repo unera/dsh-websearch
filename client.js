@@ -47,7 +47,6 @@ var en = {
   "form.type": "Provider",
   "form.typeNone": "set a type",
   "form.typeLocked": "The provider type cannot be changed \u2014 add a new entry instead",
-  "form.chooseHint": "Choose a web search provider.",
   "form.desc": "Description",
   "form.descPlaceholder": "Description (optional)",
   "form.allowSearch": "allow search",
@@ -112,7 +111,6 @@ var ru = {
   "form.type": "\u041F\u0440\u043E\u0432\u0430\u0439\u0434\u0435\u0440",
   "form.typeNone": "\u0443\u0441\u0442\u0430\u043D\u043E\u0432\u0438\u0442\u0435 \u0442\u0438\u043F",
   "form.typeLocked": "\u0422\u0438\u043F \u043F\u0440\u043E\u0432\u0430\u0439\u0434\u0435\u0440\u0430 \u043D\u0435\u043B\u044C\u0437\u044F \u0438\u0437\u043C\u0435\u043D\u0438\u0442\u044C \u2014 \u0434\u043E\u0431\u0430\u0432\u044C\u0442\u0435 \u043D\u043E\u0432\u0443\u044E \u0437\u0430\u043F\u0438\u0441\u044C",
-  "form.chooseHint": "\u0412\u044B\u0431\u0435\u0440\u0438\u0442\u0435 \u043F\u0440\u043E\u0432\u0430\u0439\u0434\u0435\u0440\u0430 \u043F\u043E\u0438\u0441\u043A\u0430 \u0432 \u0438\u043D\u0442\u0435\u0440\u043D\u0435\u0442\u0435.",
   "form.desc": "\u041E\u043F\u0438\u0441\u0430\u043D\u0438\u0435",
   "form.descPlaceholder": "\u041E\u043F\u0438\u0441\u0430\u043D\u0438\u0435 (\u043D\u0435\u043E\u0431\u044F\u0437\u0430\u0442\u0435\u043B\u044C\u043D\u043E)",
   "form.allowSearch": "\u0440\u0430\u0437\u0440\u0435\u0448\u0438\u0442\u044C \u043F\u043E\u0438\u0441\u043A",
@@ -177,7 +175,6 @@ var zh = {
   "form.type": "\u63D0\u4F9B\u65B9",
   "form.typeNone": "\u8BF7\u9009\u62E9\u7C7B\u578B",
   "form.typeLocked": "\u63D0\u4F9B\u65B9\u7C7B\u578B\u4E0D\u53EF\u4FEE\u6539 \u2014 \u8BF7\u65B0\u589E\u4E00\u6761\u8BB0\u5F55",
-  "form.chooseHint": "\u8BF7\u9009\u62E9\u7F51\u7EDC\u641C\u7D22\u7684\u63D0\u4F9B\u65B9\u3002",
   "form.desc": "\u63CF\u8FF0",
   "form.descPlaceholder": "\u63CF\u8FF0\uFF08\u53EF\u9009\uFF09",
   "form.allowSearch": "\u5141\u8BB8\u641C\u7D22",
@@ -600,7 +597,6 @@ function WebSearchPageInner(props) {
   ] });
   return (0, import_jsx_runtime.jsxs)("section", { style: styles.page, children: [
     (0, import_jsx_runtime.jsx)("h2", { style: styles.heading, children: t("nav.title") }),
-    (0, import_jsx_runtime.jsx)("p", { style: styles.helpTextBright, children: t("help.list") }),
     (0, import_jsx_runtime.jsxs)("div", { className: "dws-plates", children: [
       (0, import_jsx_runtime.jsx)("div", { className: "dws-card dws-plate-main", children: (0, import_jsx_runtime.jsxs)("div", {
         style: { display: "flex", flexDirection: "column", gap: 8 },
@@ -648,7 +644,7 @@ function WebSearchPageInner(props) {
           autoComplete: "off",
           disabled: busy,
           onChange: (e) => setDraft({ ...draft, desc: e.target.value })
-        }) : (0, import_jsx_runtime.jsx)("span", { className: "dws-note", children: t("form.chooseHint") }),
+        }) : (0, import_jsx_runtime.jsx)("span", { style: styles.helpTextBright, children: t("help.list") }),
         showingForm && (0, import_jsx_runtime.jsx)("textarea", {
           // A textarea cannot be autofilled, so Firefox's password manager stops
           // offering to save a search key. It is not masked: a textarea cannot be,
