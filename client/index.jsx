@@ -289,13 +289,18 @@ export function WebSearchPage(props) {
     return `${t(labelKey)}: ${part.ok === true ? t('test.ok') : `${t('test.failed')} — ${part.detail ?? ''}`}`
   }
 
-  /** Run every enabled provider's real search and fetch paths, one at a time. */
-  const runTests = async () => {
-    for (const [index, provider] of providers.entries()) {
-      const caps = provider.capabilities ?? {}
-      const touchesSearch = caps.search !== false && provider.useSearch !== false
-      const touchesFetch = caps.fetch === true && provider.useFetch !== false
-      if (provider.enabled === false || (!touchesSearch && !touchesFetch)) continue
+  /** Whether a provider has anything a test could exercise. */
+  const canTest = provider => {
+    const caps = provider.capabilities ?? {}
+    const touchesSearch = caps.search !== false && provider.useSearch !== false
+    const touchesFetch = caps.fetch === true && provider.useFetch !== false
+    return provider.enabled !== false && (touchesSearch || touchesFetch)
+  }
+
+  /** Run one provider's real search and fetch paths. */
+  const runOneTest = async (index, provider) => {
+    if (!canTest(provider)) return
+    {
       setTests(previous => ({ ...previous, [provider.id]: { running: true } }))
       try {
         // Two halves, each capped at 30s on the host, plus slack for the round trip.
@@ -315,6 +320,14 @@ export function WebSearchPage(props) {
           [provider.id]: { search: { ok: false, detail }, fetch: { skipped: true } },
         }))
       }
+    }
+  }
+
+  /** Run every testable provider, one at a time. */
+  const runTests = async () => {
+    for (const [index, provider] of providers.entries()) {
+      if (!canTest(provider)) continue
+      await runOneTest(index, provider)
     }
   }
 
@@ -564,18 +577,30 @@ export function WebSearchPage(props) {
             }),
             (() => {
               const tested = tests[provider.id]
-              if (tested === undefined) return null
-              if (tested.running === true) {
-                return jsx('span', { className: 'dws-spin', title: t('test.running'), children: '⟳' })
-              }
-              const lines = [testLine('test.search', tested.search), testLine('test.fetch', tested.fetch)]
-                .filter(line => line !== undefined)
-              const failed = (tested.search !== undefined && tested.search.ok === false)
-                || (tested.fetch !== undefined && tested.fetch.ok === false)
-              return jsx('span', {
-                style: failed ? styles.testFail : styles.testOk,
-                title: lines.join('\n'),
-                children: failed ? '!' : '✓',
+              const testable = canTest(provider)
+              const running = tested?.running === true
+              const lines = tested === undefined || running
+                ? []
+                : [testLine('test.search', tested.search), testLine('test.fetch', tested.fetch)]
+                  .filter(line => line !== undefined)
+              const failed = tested !== undefined && tested.running !== true && (
+                (tested.search !== undefined && tested.search.ok === false)
+                || (tested.fetch !== undefined && tested.fetch.ok === false))
+              const label = !testable ? t('test.off') : (running ? t('test.running') : [t('test.one'), ...lines].join('\n'))
+              return jsx('button', {
+                className: running ? 'dws-icon dws-spin' : 'dws-icon',
+                disabled: busy || running || !testable,
+                title: label,
+                onClick: event => {
+                  event.stopPropagation()
+                  void runOneTest(index, provider)
+                },
+                children: running
+                  ? '⟳'
+                  : (tested === undefined ? '⟳' : (failed ? '!' : '✓')),
+                style: tested === undefined || running
+                  ? undefined
+                  : (failed ? styles.testFail : styles.testOk),
               })
             })(),
             jsxs('span', { style: styles.actions, children: [

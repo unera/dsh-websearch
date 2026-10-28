@@ -72,6 +72,8 @@ var en = {
   "list.deleteConfirm": "Delete the '{0}' provider (id {1})?",
   "list.reset": "reset",
   "test.run": "Test all",
+  "test.one": "Test this provider",
+  "test.off": "Nothing to test: the provider is off or has no allowed capability",
   "test.running": "Testing\u2026",
   "test.search": "search",
   "test.fetch": "page fetch",
@@ -135,6 +137,8 @@ var ru = {
   "list.deleteConfirm": "\u0412\u044B \u0443\u0432\u0435\u0440\u0435\u043D\u044B, \u0447\u0442\u043E \u0445\u043E\u0442\u0438\u0442\u0435 \u0443\u0434\u0430\u043B\u0438\u0442\u044C \xAB{0}\xBB \u0441 id={1}?",
   "list.reset": "\u0441\u0431\u0440\u043E\u0441\u0438\u0442\u044C",
   "test.run": "\u043F\u0440\u043E\u0442\u0435\u0441\u0442\u0438\u0440\u043E\u0432\u0430\u0442\u044C \u0432\u0441\u0451",
+  "test.one": "\u043F\u0440\u043E\u0432\u0435\u0440\u0438\u0442\u044C \u044D\u0442\u043E\u0433\u043E \u043F\u0440\u043E\u0432\u0430\u0439\u0434\u0435\u0440\u0430",
+  "test.off": "\u041F\u0440\u043E\u0432\u0435\u0440\u044F\u0442\u044C \u043D\u0435\u0447\u0435\u0433\u043E: \u043F\u0440\u043E\u0432\u0430\u0439\u0434\u0435\u0440 \u0432\u044B\u043A\u043B\u044E\u0447\u0435\u043D \u0438\u043B\u0438 \u043D\u0435 \u0440\u0430\u0437\u0440\u0435\u0448\u0435\u043D\u043E \u043D\u0438 \u043F\u043E\u0438\u0441\u043A\u0430, \u043D\u0438 \u0441\u043A\u0430\u0447\u0438\u0432\u0430\u043D\u0438\u044F",
   "test.running": "\u041F\u0440\u043E\u0432\u0435\u0440\u044F\u044E\u2026",
   "test.search": "\u043F\u043E\u0438\u0441\u043A",
   "test.fetch": "\u0441\u043A\u0430\u0447\u0438\u0432\u0430\u043D\u0438\u0435",
@@ -198,6 +202,8 @@ var zh = {
   "list.deleteConfirm": "\u786E\u5B9A\u8981\u5220\u9664\u201C{0}\u201D\uFF08id {1}\uFF09\u5417\uFF1F",
   "list.reset": "\u91CD\u7F6E",
   "test.run": "\u6D4B\u8BD5\u5168\u90E8",
+  "test.one": "\u6D4B\u8BD5\u6B64\u63D0\u4F9B\u65B9",
+  "test.off": "\u65E0\u53EF\u6D4B\u8BD5\uFF1A\u63D0\u4F9B\u65B9\u5DF2\u5173\u95ED\u6216\u672A\u5141\u8BB8\u4EFB\u4F55\u80FD\u529B",
   "test.running": "\u6D4B\u8BD5\u4E2D\u2026",
   "test.search": "\u641C\u7D22",
   "test.fetch": "\u6293\u53D6",
@@ -437,12 +443,15 @@ function WebSearchPage(props) {
     if (part.skipped === true) return `${t(labelKey)}: ${t("test.skipped")}`;
     return `${t(labelKey)}: ${part.ok === true ? t("test.ok") : `${t("test.failed")} \u2014 ${part.detail ?? ""}`}`;
   };
-  const runTests = async () => {
-    for (const [index, provider] of providers.entries()) {
-      const caps = provider.capabilities ?? {};
-      const touchesSearch = caps.search !== false && provider.useSearch !== false;
-      const touchesFetch = caps.fetch === true && provider.useFetch !== false;
-      if (provider.enabled === false || !touchesSearch && !touchesFetch) continue;
+  const canTest = (provider) => {
+    const caps = provider.capabilities ?? {};
+    const touchesSearch = caps.search !== false && provider.useSearch !== false;
+    const touchesFetch = caps.fetch === true && provider.useFetch !== false;
+    return provider.enabled !== false && (touchesSearch || touchesFetch);
+  };
+  const runOneTest = async (index, provider) => {
+    if (!canTest(provider)) return;
+    {
       setTests((previous) => ({ ...previous, [provider.id]: { running: true } }));
       try {
         const controller = new AbortController();
@@ -461,6 +470,12 @@ function WebSearchPage(props) {
           [provider.id]: { search: { ok: false, detail }, fetch: { skipped: true } }
         }));
       }
+    }
+  };
+  const runTests = async () => {
+    for (const [index, provider] of providers.entries()) {
+      if (!canTest(provider)) continue;
+      await runOneTest(index, provider);
     }
   };
   const act = (action) => (event) => {
@@ -709,16 +724,21 @@ function WebSearchPage(props) {
             }),
             (() => {
               const tested = tests[provider.id];
-              if (tested === void 0) return null;
-              if (tested.running === true) {
-                return (0, import_jsx_runtime.jsx)("span", { className: "dws-spin", title: t("test.running"), children: "\u27F3" });
-              }
-              const lines = [testLine("test.search", tested.search), testLine("test.fetch", tested.fetch)].filter((line) => line !== void 0);
-              const failed = tested.search !== void 0 && tested.search.ok === false || tested.fetch !== void 0 && tested.fetch.ok === false;
-              return (0, import_jsx_runtime.jsx)("span", {
-                style: failed ? styles.testFail : styles.testOk,
-                title: lines.join("\n"),
-                children: failed ? "!" : "\u2713"
+              const testable = canTest(provider);
+              const running = tested?.running === true;
+              const lines = tested === void 0 || running ? [] : [testLine("test.search", tested.search), testLine("test.fetch", tested.fetch)].filter((line) => line !== void 0);
+              const failed = tested !== void 0 && tested.running !== true && (tested.search !== void 0 && tested.search.ok === false || tested.fetch !== void 0 && tested.fetch.ok === false);
+              const label2 = !testable ? t("test.off") : running ? t("test.running") : [t("test.one"), ...lines].join("\n");
+              return (0, import_jsx_runtime.jsx)("button", {
+                className: running ? "dws-icon dws-spin" : "dws-icon",
+                disabled: busy || running || !testable,
+                title: label2,
+                onClick: (event) => {
+                  event.stopPropagation();
+                  void runOneTest(index, provider);
+                },
+                children: running ? "\u27F3" : tested === void 0 ? "\u27F3" : failed ? "!" : "\u2713",
+                style: tested === void 0 || running ? void 0 : failed ? styles.testFail : styles.testOk
               });
             })(),
             (0, import_jsx_runtime.jsxs)("span", { style: styles.actions, children: [
