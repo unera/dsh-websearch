@@ -189,6 +189,7 @@ export function WebSearchPage() {
     providers.length > 0 && jsx('ul', { style: styles.list, children: providers.map((provider, index) => {
       const on = provider.enabled === true
       const icon = iconOf(provider.type)
+      const stats = provider.stats ?? {}
       return jsxs('li', {
         className: 'dws-row',
         'data-selected': String(index === selected),
@@ -196,33 +197,43 @@ export function WebSearchPage() {
         onClick: () => select(index),
         title: 'Click to edit',
         children: [
-          jsx('button', {
-            className: 'dws-icon',
-            disabled: busy,
-            title: on ? 'Disable' : 'Enable',
-            onClick: act({ action: 'toggle', index }),
-            children: on ? '⏸' : '▶',
-          }),
-          jsx('span', { style: styles.id, children: provider.id || '—' }),
-          icon !== null && jsx('img', { src: icon, alt: typeLabel(provider.type), width: 13, height: 16, style: { flex: '0 0 auto', opacity: on ? 1 : 0.35 } }),
-          provider.desc !== '' && jsx('span', { style: styles.desc, children: provider.desc }),
-          jsxs('span', {
-            style: styles.counters,
-            title: `last search: ${when(provider.stats?.lastSearch)}\nlast error: ${when(provider.stats?.lastError)}`,
-            children: [
-              jsx('span', { style: styles.green, children: provider.stats?.searches ?? 0 }),
-              jsx('span', { style: styles.slash, children: '/' }),
-              jsx('span', { style: styles.red, children: provider.stats?.errors ?? 0 }),
-            ],
-          }),
-          jsx('button', {
-            className: 'dws-icon', disabled: busy, title: 'reset',
-            onClick: act({ action: 'reset', index }), children: '⟲',
-          }),
-          jsxs('span', { style: styles.actions, children: [
-            jsx('button', { className: 'dws-icon', disabled: busy, title: 'Delete', onClick: act({ action: 'delete', index }), children: '×' }),
-            jsx('button', { className: 'dws-icon', disabled: busy || index === 0, title: 'Move up', onClick: act({ action: 'move', index, delta: -1 }), children: '↑' }),
-            jsx('button', { className: 'dws-icon', disabled: busy || index === providers.length - 1, title: 'Move down', onClick: act({ action: 'move', index, delta: 1 }), children: '↓' }),
+          jsxs('div', { style: styles.line, children: [
+            jsx('button', {
+              className: 'dws-icon',
+              disabled: busy,
+              title: on
+                ? 'Currently enabled. Click to disable.'
+                : 'Currently disabled. Click to enable.',
+              onClick: act({ action: 'toggle', index }),
+              children: on ? '⏸' : '▶',
+            }),
+            jsx('span', { style: styles.id, children: provider.id || '—' }),
+            icon !== null && jsx('img', {
+              src: icon, alt: typeLabel(provider.type), width: 13, height: 16,
+              style: { flex: '0 0 auto', opacity: on ? 1 : 0.35 },
+            }),
+            provider.desc !== '' && jsx('span', { style: styles.desc, children: provider.desc }),
+            jsxs('span', { style: styles.actions, children: [
+              jsx('button', { className: 'dws-icon', disabled: busy, title: 'Delete', onClick: act({ action: 'delete', index }), children: '×' }),
+              jsx('button', { className: 'dws-icon', disabled: busy || index === 0, title: 'Move up', onClick: act({ action: 'move', index, delta: -1 }), children: '↑' }),
+              jsx('button', { className: 'dws-icon', disabled: busy || index === providers.length - 1, title: 'Move down', onClick: act({ action: 'move', index, delta: 1 }), children: '↓' }),
+            ] }),
+          ] }),
+          jsxs('div', { style: styles.under, children: [
+            jsxs('span', {
+              style: styles.counters,
+              title: `last search: ${when(stats.lastSearch)}\nlast error: ${when(stats.lastError)}`,
+              children: [
+                jsx('span', { style: styles.muted, children: 'requests/errors: ' }),
+                jsx('span', { style: styles.green, children: stats.searches ?? 0 }),
+                jsx('span', { style: styles.slash, children: '/' }),
+                jsx('span', { style: styles.red, children: stats.errors ?? 0 }),
+              ],
+            }),
+            jsx('button', {
+              className: 'dws-icon', disabled: busy, title: 'reset',
+              onClick: act({ action: 'reset', index }), children: '⟲',
+            }),
           ] }),
         ],
       })
@@ -241,7 +252,9 @@ const styles = {
     display: 'flex', flexDirection: 'column', gap: 8,
   },
   list: { display: 'flex', flexDirection: 'column', gap: 2, listStyle: 'none', margin: 0, padding: 0 },
-  item: { alignItems: 'center', display: 'flex', gap: 8 },
+  item: { alignItems: 'stretch', display: 'flex', flexDirection: 'column', gap: 2 },
+  line: { alignItems: 'center', display: 'flex', gap: 8 },
+  under: { alignItems: 'center', display: 'flex', gap: 6, paddingLeft: 2 },
   id: { flex: '0 0 auto', fontFamily: 'monospace', fontSize: 12, opacity: 0.75 },
   desc: { flex: '1 1 auto', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
   actions: { display: 'flex', flex: '0 0 auto', gap: 4 },
@@ -250,6 +263,7 @@ const styles = {
   red: { color: '#f85149' },
   slash: { opacity: 0.5 },
   activeLabel: { fontSize: 12, opacity: 0.75 },
+  muted: { opacity: 0.6 },
   row: { alignItems: 'center', display: 'flex', gap: 8 },
   button: {
     padding: '7px 12px', borderRadius: 6, border: '1px solid rgba(127,127,127,.35)',
