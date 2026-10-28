@@ -234,19 +234,40 @@ export function WebSearchPage(props) {
     ] }),
 
     jsxs('div', { className: 'dws-card', children: [
-      fieldset(t('form.type'), typeSelect),
-      !showingForm && jsx('p', { style: styles.hint, children: t('form.chooseHint') }),
-      showingForm && fieldset(t('form.desc'), jsx('input', {
-        className: 'dws-field', type: 'text', value: draft.desc,
-        placeholder: t('form.descPlaceholder'), spellCheck: false, autoComplete: 'off', disabled: busy,
-        onChange: e => setDraft({ ...draft, desc: e.target.value }),
-      })),
-      showingForm && fieldset(t('form.secret'), jsx('input', {
-        className: 'dws-field', type: 'password', value: draft.apiKey, name: 'dsh-websearch-key',
-        autoComplete: 'new-password', disabled: busy,
-        placeholder: hasStoredKey ? t('form.secretStored') : t('form.secretNew'),
-        onChange: e => setDraft({ ...draft, apiKey: e.target.value }),
-      })),
+      // One row, three cells: the provider type, its description, and the key with
+      // the button that submits the form. Until a type is chosen the two data cells
+      // carry an instruction instead of an input, so the form keeps one line.
+      jsxs('div', { className: 'dws-form', children: [
+        jsx('select', {
+          className: 'dws-field',
+          value: formType,
+          disabled: busy || editing,
+          title: editing ? t('form.typeLocked') : undefined,
+          onChange: editing ? undefined : chooseType,
+          children: typeOptions,
+        }),
+        showingForm
+          ? jsx('input', {
+            className: 'dws-field', type: 'text', value: draft.desc,
+            placeholder: t('form.descPlaceholder'), spellCheck: false, autoComplete: 'off', disabled: busy,
+            onChange: e => setDraft({ ...draft, desc: e.target.value }),
+          })
+          : jsx('span', { className: 'dws-note', children: t('form.chooseHint') }),
+        jsxs('div', { className: 'dws-key', children: [
+          showingForm
+            ? jsx('input', {
+              className: 'dws-field', type: 'password', value: draft.apiKey, name: 'dsh-websearch-key',
+              autoComplete: 'new-password', disabled: busy,
+              placeholder: hasStoredKey ? t('form.secretStored') : t('form.secretNew'),
+              onChange: e => setDraft({ ...draft, apiKey: e.target.value }),
+            })
+            : jsx('span', { className: 'dws-note', children: t('form.chooseHint') }),
+          jsx('button', {
+            className: 'dws-button', disabled: !canSubmit, onClick: submit,
+            children: editing ? t('form.save') : t('form.add'),
+          }),
+        ] }),
+      ] }),
       showingForm && jsxs('div', { className: 'dws-actions', children: [
         jsxs('label', { style: styles.enabled, title: canEnable ? '' : t('form.needKey'), children: [
           jsx('input', {
@@ -255,10 +276,6 @@ export function WebSearchPage(props) {
           }),
           ` ${t('form.enabled')}`,
         ] }),
-        jsx('button', {
-          className: 'dws-button', disabled: !canSubmit, onClick: submit,
-          children: editing ? `${t('form.save')} ${typeLabel(formType)}` : t('form.add'),
-        }),
         editing && jsx('button', {
           className: 'dws-button', disabled: busy, onClick: reset, children: t('form.cancel'),
         }),

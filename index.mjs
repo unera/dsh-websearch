@@ -198,7 +198,6 @@ export function createDeepseekProvider(config, credentials, { fetchFn = fetch } 
       const apiKey = String(config.apiKey ?? '').trim()
         || String(resolved?.value ?? '').trim()
         || String(process.env[ref] ?? '').trim()
-        || String(process.env.DEEPSEEK_API_KEY ?? '').trim()
       if (!apiKey) {
         throw new WebError(`DeepSeek search has no API key for "${ref}"`, 'WEB_PROVIDER_CREDENTIAL_MISSING')
       }
