@@ -131,7 +131,7 @@ async function call(path, body) {
   return payload
 }
 
-const emptyDraft = { type: '', desc: '', model: '', apiKey: '', fetchApiKey: '', enabled: true, useSearch: true, useFetch: true }
+const emptyDraft = { type: '', desc: '', model: '', apiKey: '', enabled: true, useSearch: true, useFetch: true }
 
 /** The language the host is showing, read off the dictionary it handed us. */
 const uiLanguage = t => {
@@ -197,7 +197,6 @@ export function WebSearchPage(props) {
       desc: provider?.desc ?? '',
       model: provider?.model ?? '',
       apiKey: '',
-      fetchApiKey: '',
       enabled: provider?.enabled !== false,
       useSearch: provider?.capabilities?.search !== false,
       useFetch: provider?.capabilities?.fetch !== false,
@@ -220,7 +219,6 @@ export function WebSearchPage(props) {
       desc: draft.desc,
       model: draft.model.trim(),
       apiKey: draft.apiKey.trim(),
-      fetchApiKey: draft.fetchApiKey.trim(),
       useSearch: draft.useSearch !== false,
       useFetch: draft.useFetch !== false,
       enabled: draft.enabled === true,
@@ -244,7 +242,6 @@ export function WebSearchPage(props) {
   }
 
   const typeCaps = PROVIDER_CAPS[formType] ?? { search: true, fetch: true }
-  const providerFetchKeyStored = editing && providers[selected]?.fetchKeySet === true
 
   const lang = uiLanguage(t)
   const when = ms => (typeof ms === 'number' && ms > 0 ? new Date(ms).toLocaleString(lang) : t('common.never'))
@@ -367,14 +364,6 @@ export function WebSearchPage(props) {
             }),
             ` ${label('form.allowFetch', 'allow page fetch')}`,
           ],
-        }),
-        formType === 'jina' && jsx('input', {
-          className: 'dws-field dws-model', type: 'password', value: draft.fetchApiKey,
-          // Not a textarea: this one is masked, and Jina's UI shows these as secrets.
-          name: 'dsh-websearch-fetch-key', autoComplete: 'new-password',
-          placeholder: providerFetchKeyStored ? t('form.secretStored') : t('form.secretFetch'),
-          title: t('form.secretFetchHint'), spellCheck: false, disabled: busy,
-          onChange: e => setDraft({ ...draft, fetchApiKey: e.target.value }),
         }),
         formType === 'openai' && jsx('input', {
           className: 'dws-field dws-model', type: 'text', value: draft.model,

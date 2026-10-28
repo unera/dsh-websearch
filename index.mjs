@@ -50,8 +50,6 @@ const ProviderConfigSchema = z.object({
   /** Model a provider answers with; only model-backed search (OpenAI) reads it. */
   model: z.string().default(''),
   apiKey: z.string().role('secret').default(''),
-  /** Key for the page-retrieval side, for services that issue one per product. */
-  fetchApiKey: z.string().role('secret').default(''),
   credentialRef: z.string().role('credential-ref').default('').hidden(),
   enabled: z.boolean().default(true),
   /** Whether this entry may serve `web_search`. Separate from what the type can do. */
@@ -520,12 +518,6 @@ export function createJinaProvider(config, credentials, { fetchFn = fetch } = {}
       || String(resolved?.value ?? '').trim()
       || String(process.env[ref] ?? '').trim()
   }
-  /**
-   * The reader key, when Jina issued one for page retrieval separately. A blank
-   * value falls back to the search key, and then to no auth at all: `r.jina.ai`
-   * answers anonymously, just with lower limits.
-   */
-  const readerKeyOf = async () => String(config.fetchApiKey ?? '').trim() || await apiKeyOf()
   return {
     id,
     type: 'jina',
@@ -572,7 +564,7 @@ export function createJinaProvider(config, credentials, { fetchFn = fetch } = {}
       if (!/^https?:\/\//i.test(url)) {
         throw new WebError(`Jina fetch needs an http(s) URL, got ${JSON.stringify(url)}`, 'WEB_INVALID_URL')
       }
-      const apiKey = await readerKeyOf()
+      const apiKey = await apiKeyOf()
       let response
       try {
         response = await fetchFn(`${readerBase}/${url}`, {
@@ -1054,7 +1046,6 @@ function publicProvider(provider, index) {
     model: provider.model ?? '',
     enabled: provider.enabled !== false,
     keySet: String(provider.apiKey ?? '').trim() !== '',
-    fetchKeySet: String(provider.fetchApiKey ?? '').trim() !== '',
     capabilities: {
       search: (PROVIDER_CAPABILITIES[provider.type ?? 'exa'] ?? { search: true }).search !== false
         && provider.useSearch !== false,
@@ -1160,7 +1151,6 @@ export function createProviderHandler(settings) {
           desc: String(draft.desc ?? '').trim(),
           model: String(draft.model ?? '').trim(),
           apiKey,
-          fetchApiKey: String(draft.fetchApiKey ?? '').trim(),
           credentialRef: makeCredentialRef(type, id),
           enabled: draft.enabled !== false,
           useSearch: typeSearch !== false,
@@ -1184,8 +1174,6 @@ export function createProviderHandler(settings) {
         const apiKey = String(draft.apiKey ?? '').trim()
         // An empty key field means "keep the stored one", not "erase it".
         if (apiKey !== '') next.apiKey = apiKey
-        const fetchApiKey = String(draft.fetchApiKey ?? '').trim()
-        if (fetchApiKey !== '') next.fetchApiKey = fetchApiKey
         providers[index] = next
       } else if (action === 'delete') {
         const [removed] = providers.splice(indexOf(providers, body.index), 1)
