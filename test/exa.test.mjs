@@ -677,3 +677,44 @@ test('Perplexity searches through the Agent API and reads the search_results ite
   assert.throws(() => mapPerplexityResponse({ status: 'completed', output: [] }), /no search_results item/)
 })
 
+
+test('Tavily searches and extracts pages', async () => {
+  const { createProvider } = await import('../index.mjs')
+  const calls = []
+  const provider = createProvider({ id: 'h-tav01', type: 'tavily', apiKey: 'tvly-1', enabled: true }, undefined, {
+    fetchFn: async (url, init) => {
+      calls.push({ url, init })
+      if (url.endsWith('/search')) {
+        return { ok: true, status: 200, json: async () => ({ results: [
+          { url: 'https://a.example', title: 'A', content: 'long   snippet', published_date: '2026-10-28' },
+          { url: 'https://a.example', title: 'dup', content: 'x' },
+        ] }) }
+      }
+      return { ok: true, status: 200, json: async () => ({ results: [
+        { url: 'https://example.com', raw_content: '# Page' },
+      ], failed_results: [] }) }
+    },
+  })
+  assert.equal(provider.type, 'tavily')
+
+  const found = await provider.search({ query: 'курс доллара' })
+  assert.deepEqual(found.sources, [
+    { url: 'https://a.example', title: 'A', snippet: 'long snippet', publishedAt: '2026-10-28' },
+  ])
+  assert.equal(calls[0].url, 'https://api.tavily.com/search')
+  assert.equal(calls[0].init.headers.authorization, 'Bearer tvly-1')
+  assert.equal(JSON.parse(calls[0].init.body).max_results, 5)
+
+  const page = await provider.fetch({ url: 'https://example.com' })
+  assert.equal(calls[1].url, 'https://api.tavily.com/extract')
+  assert.deepEqual(JSON.parse(calls[1].init.body), { urls: ['https://example.com'], format: 'markdown' })
+  assert.equal(page.body.content, '# Page')
+})
+
+test('Tavily treats a per-URL extract failure as an error, not an empty page', async () => {
+  const { createProvider } = await import('../index.mjs')
+  const provider = createProvider({ id: 'h-tav02', type: 'tavily', apiKey: 'tvly-1' }, undefined, {
+    fetchFn: async () => ({ ok: true, status: 200, json: async () => ({ results: [], failed_results: [{ url: 'https://x', error: 'blocked' }] }) }),
+  })
+  await assert.rejects(() => provider.fetch({ url: 'https://x' }), /could not extract .*blocked/)
+})

@@ -39,8 +39,13 @@ export const JINA_SEARCH_URL = 'https://s.jina.ai'
 export const PERPLEXITY_BASE_URL = 'https://api.perplexity.ai'
 /** Search model slug on the Agent API. */
 export const PERPLEXITY_DEFAULT_MODEL = 'perplexity/sonar'
-/** Upper bound on generated answer tokens. */
-export const PERPLEXITY_MAX_OUTPUT_TOKENS = 1024
+/**
+ * Tavily endpoints. Search answers with snippets; extract returns page text as
+ * markdown, up to twenty URLs per call.
+ */
+export const TAVILY_BASE_URL = 'https://api.tavily.com'
+/** Results requested per search; Tavily's own default is five. */
+export const TAVILY_DEFAULT_MAX_RESULTS = 5
 export const INTERNAL_PROVIDER_ID = 'internal'
 
 const ProviderConfigSchema = z.object({
@@ -738,6 +743,129 @@ export function createPerplexityProvider(config, credentials, { fetchFn = fetch 
   }
 }
 
+
+/**
+ * Map a Tavily search answer onto `WebSearchResult`.
+ * @param payload - Parsed `/search` body.
+ * @returns Sources in provider order, snippets taken from `content`.
+ * @throws {@link WebError} when the body carries no results array.
+ */
+export function mapTavilyResponse(payload) {
+  if (payload === null || typeof payload !== 'object' || !Array.isArray(payload.results)) {
+    throw new WebError('Tavily returned an unexpected body', 'WEB_PROVIDER_ERROR')
+  }
+  const sources = []
+  const seen = new Set()
+  for (const item of payload.results) {
+    if (item === null || typeof item !== 'object') continue
+    if (typeof item.url !== 'string' || item.url === '' || seen.has(item.url)) continue
+    seen.add(item.url)
+    const snippet = String(item.content ?? '').replace(/\s+/g, ' ').trim()
+    sources.push({
+      url: item.url,
+      ...typeof item.title === 'string' && item.title !== '' ? { title: item.title } : {},
+      ...snippet === '' ? {} : { snippet: snippet.slice(0, 500) },
+      ...typeof item.published_date === 'string' && item.published_date !== ''
+        ? { publishedAt: item.published_date } : {},
+    })
+  }
+  return { sources, truncated: false }
+}
+
+/**
+ * Tavily: search plus page extraction through one API.
+ *
+ * Extract answers 200 even when individual URLs failed, so `failed_results` is
+ * checked explicitly instead of trusting the status code — otherwise a broken page
+ * would look like an empty one.
+ *
+ * @param config - One provider entry.
+ * @param credentials - Optional credentials seam used to resolve the key reference.
+ * @param options.fetchFn - Transport, replaceable in tests.
+ */
+export function createTavilyProvider(config, credentials, { fetchFn = fetch } = {}) {
+  const id = normalizeProviderId(config.id)
+  const ref = credentialRef(config.credentialRef ?? makeCredentialRef('tavily', id))
+  const base = (String(config.baseUrl ?? '').trim() || TAVILY_BASE_URL).replace(/\/+$/, '')
+  const keyInConfig = String(config.apiKey ?? '').trim() !== ''
+  const keyInEnv = String(process.env[config.credentialRef ?? ''] ?? '').trim() !== ''
+  const apiKeyOf = async () => {
+    const resolved = await credentials?.resolve(ref)
+    return String(config.apiKey ?? '').trim()
+      || String(resolved?.value ?? '').trim()
+      || String(process.env[ref] ?? '').trim()
+  }
+  const call = async (path, body, signal) => {
+    const apiKey = await apiKeyOf()
+    if (!apiKey) {
+      throw new WebError(`Tavily has no API key for "${ref}"`, 'WEB_PROVIDER_CREDENTIAL_MISSING')
+    }
+    let response
+    try {
+      response = await fetchFn(`${base}${path}`, {
+        method: 'POST',
+        redirect: 'error',
+        headers: {
+          authorization: `Bearer ${apiKey}`,
+          'content-type': 'application/json',
+          accept: 'application/json',
+        },
+        body: JSON.stringify(body),
+        signal,
+      })
+    } catch (error) {
+      if (signal?.aborted) throw new WebError('Tavily request aborted', 'WEB_ABORTED', { cause: error })
+      throw new WebError(`Tavily request failed: ${String(error)}`, 'WEB_PROVIDER_ERROR', { cause: error })
+    }
+    if (response.status === 401 || response.status === 403) throw new WebError('Tavily rejected the configured API key.', 'WEB_PROVIDER_CREDENTIAL_INVALID')
+    if (response.status === 429) throw new WebError('Tavily was rate limited.', 'WEB_PROVIDER_RATE_LIMITED')
+    if (!response.ok) {
+      const detail = (await response.text().catch(() => '')).replace(/\s+/g, ' ').slice(0, 240)
+      throw new WebError(`Tavily request failed (${response.status})${detail ? `: ${detail}` : '.'}`, 'WEB_PROVIDER_ERROR')
+    }
+    try { return await response.json() } catch (error) {
+      throw new WebError(`Tavily returned malformed JSON: ${String(error)}`, 'WEB_PROVIDER_ERROR', { cause: error })
+    }
+  }
+  return {
+    id,
+    type: 'tavily',
+    desc: config.desc ?? '',
+    credentialRef: config.credentialRef ?? makeCredentialRef('tavily', id),
+    enabled: config.enabled !== false,
+    throttle: config.throttle ?? undefined,
+    config: config.config ?? {},
+    available: () => keyInConfig || Boolean(credentials) || keyInEnv,
+    async search(request, signal) {
+      const query = String(request.query ?? '').trim()
+      if (!query) return { sources: [], truncated: false }
+      const payload = await call('/search', {
+        query,
+        max_results: Number(request.maxResults) > 0 ? Number(request.maxResults) : TAVILY_DEFAULT_MAX_RESULTS,
+      }, signal)
+      return mapTavilyResponse(payload)
+    },
+    async fetch(request, signal) {
+      const url = String(request?.url ?? '').trim()
+      if (!/^https?:\/\//i.test(url)) {
+        throw new WebError(`Tavily fetch needs an http(s) URL, got ${JSON.stringify(url)}`, 'WEB_INVALID_URL')
+      }
+      const payload = await call('/extract', { urls: [url], format: 'markdown' }, signal)
+      const failed = Array.isArray(payload?.failed_results) ? payload.failed_results[0] : undefined
+      if (failed !== undefined) {
+        throw new WebError(
+          `Tavily could not extract ${url}: ${String(failed?.error ?? 'unknown reason')}`,
+          'WEB_PROVIDER_ERROR',
+        )
+      }
+      const item = Array.isArray(payload?.results) ? payload.results[0] : undefined
+      const content = String(item?.raw_content ?? '').trim()
+      if (content === '') throw new WebError(`Tavily returned no text for ${url}.`, 'WEB_PROVIDER_ERROR')
+      return { url: String(item?.url ?? url), statusCode: 200, body: { kind: 'text', content }, truncated: false }
+    },
+  }
+}
+
 /** Build the provider a config entry names; the type decides the wire protocol. */
 export function createProvider(config, credentials, options) {
   const type = config.type ?? 'exa'
@@ -749,7 +877,9 @@ export function createProvider(config, credentials, options) {
         ? createJinaProvider(config, credentials, options)
         : type === 'perplexity'
           ? createPerplexityProvider(config, credentials, options)
-          : createExaProvider(config, credentials, options)
+          : type === 'tavily'
+            ? createTavilyProvider(config, credentials, options)
+            : createExaProvider(config, credentials, options)
   // The aggregators read these: a type may be able to do something the entry is
   // configured not to use, which is how one provider searches while the next
   // one, further down the list, does the page retrieval.
@@ -889,7 +1019,7 @@ export const SEARCH_PROVIDER_ID = 'dsh-websearch'
  * Provider types this build can talk to. The form's select offers exactly these,
  * and `/providers` refuses anything else instead of storing a type it cannot run.
  */
-export const PROVIDER_TYPES = Object.freeze(['exa', 'deepseek', 'openai', 'jina', 'perplexity'])
+export const PROVIDER_TYPES = Object.freeze(['exa', 'deepseek', 'openai', 'jina', 'perplexity', 'tavily'])
 
 /**
  * What each provider type can do. Search and page retrieval are separate
@@ -904,6 +1034,7 @@ export const PROVIDER_CAPABILITIES = Object.freeze({
   // Jina renders pages and searches; the reader works even without a key.
   jina: Object.freeze({ search: true, fetch: true }),
   perplexity: Object.freeze({ search: true, fetch: false }),
+  tavily: Object.freeze({ search: true, fetch: true }),
 })
 /** The `web` seam's namespace, whose `searchProvider` field selects the active provider. */
 export const WEB_NAMESPACE = 'web'
