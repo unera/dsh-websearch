@@ -10,7 +10,6 @@ process.env.DSH_HOME = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-websearch-test
 import {
   createExaProvider,
   createSearchAggregator,
-  describeProviders,
   generateProviderId,
   makeCredentialRef,
   normalizeProviderId,
@@ -63,27 +62,6 @@ test('does not fall back after an invalid request', async () => {
   await assert.rejects(createSearchAggregator([first, second]).search({ query: 'test' }), error => error.code === 'WEB_INVALID_REQUEST')
 })
 
-test('describes safe provider configuration without secret values', () => {
-  assert.deepEqual(describeProviders([{
-    ...config,
-    desc: 'Основной Exa',
-    endpoints: { search: null },
-    throttle: { requests: 20, windowSeconds: 60, maxConcurrent: 2 },
-    config: { numResults: 8 },
-  }]), [{
-    id: 'h-a7K2x',
-    type: 'exa',
-    desc: 'Основной Exa',
-    credentialRef: 'DSH_WEBSEARCH_EXA_H_A7K2X',
-    enabled: true,
-    endpoints: { search: null },
-    throttle: { requests: 20, windowSeconds: 60, maxConcurrent: 2 },
-    config: { numResults: 8 },
-    configured: true,
-    available: true,
-  }])
-})
-
 test('unwraps a volatile provider field and tolerates a plain array', async () => {
   const { unwrapProviders } = await import('../index.mjs')
   const rows = [{ id: 'h-a7K2x' }]
@@ -103,11 +81,17 @@ function fakeSettings(providers) {
   }
 }
 
-function callHandler(handler, { method = 'POST', url = '/__ws/providers', body = {} } = {}) {
+function callHandler(handler, {
+  method = 'POST',
+  url = '/__ws/providers',
+  body = {},
+  headers = { 'content-type': 'application/json' },
+} = {}) {
   const response = { status: 0, payload: null, writeHead(code) { this.status = code }, end(text) { this.payload = JSON.parse(text) } }
   const request = {
     method,
     url,
+    headers,
     async *[Symbol.asyncIterator]() {
       if (method === 'POST') yield Buffer.from(JSON.stringify(body))
     },
@@ -850,19 +834,19 @@ test('migration moves existing keys out of the document', async () => {
   assert.equal(await migrateSecretsToCredentials({ settings, credentials }), 0)
 })
 
-test('the self-test exercises only what a provider is allowed to do', async () => {
+test('the self-test reports a failing half instead of throwing', async () => {
   const { createProviderHandler } = await import('../index.mjs')
-  const calls = []
   const settings = fakeSettings([
-    { id: 'h-tst01', type: 'openai', apiKey: 'sk', enabled: true, useSearch: true, useFetch: false },
+    { id: 'h-tst01', type: 'serper', apiKey: 'sr', enabled: true, useSearch: true, useFetch: false },
   ])
   const handler = createProviderHandler(settings)
   const response = await callHandler(handler, { body: { action: 'test', index: 0 } })
   assert.equal(response.status, 200)
-  // OpenAI has no fetch endpoint, so that half is reported as skipped, not failed.
+  // Serper has no fetch endpoint, so that half is skipped rather than failed.
   assert.equal(response.payload.fetch.skipped, true)
+  // The search half really ran and failed on a fake key, and that is a report, not a crash.
   assert.equal(typeof response.payload.search.ok, 'boolean')
-  calls.push(response.payload)
+  assert.equal(typeof response.payload.search.detail, 'string')
 })
 
 test('a self-test half is bounded to thirty seconds', async () => {
@@ -899,4 +883,84 @@ test('Serper searches Google through one POST with the key in a header', async (
   assert.equal(JSON.parse(init.body).q, 'курс')
 
   assert.throws(() => mapSerperResponse({ credits: 1 }), /no organic results/)
+})
+
+test('a provider reports HTTP failures as classified errors', async () => {
+  const { createProvider } = await import('../index.mjs')
+  const cases = [
+    [401, 'WEB_PROVIDER_CREDENTIAL_INVALID'],
+    [403, 'WEB_PROVIDER_CREDENTIAL_INVALID'],
+    [429, 'WEB_PROVIDER_RATE_LIMITED'],
+    [500, 'WEB_PROVIDER_ERROR'],
+  ]
+  for (const [status, code] of cases) {
+    const provider = createProvider({ id: 'h-err01', type: 'brave', apiKey: 'k' }, undefined, {
+      fetchFn: async () => ({ ok: false, status, text: async () => 'nope' }),
+    })
+    await assert.rejects(() => provider.search({ query: 'q' }), error => error.code === code, `status ${status}`)
+  }
+
+  // A 200 with an unusable body is an error, not an empty result.
+  for (const type of ['tavily', 'firecrawl', 'brave', 'serper', 'exa']) {
+    const provider = createProvider({ id: 'h-err02', type, apiKey: 'k' }, undefined, {
+      fetchFn: async () => ({ ok: true, status: 200, json: async () => ({ unexpected: true }), text: async () => '{}' }),
+    })
+    await assert.rejects(
+      () => provider.search({ query: 'q' }),
+      error => error?.code === 'WEB_PROVIDER_ERROR' || error?.code === 'WEB_PROVIDER_EMPTY',
+      `${type} should reject an unexpected body`,
+    )
+  }
+
+  // Malformed JSON from the transport is reported, not thrown as a parse crash.
+  const broken = createProvider({ id: 'h-err03', type: 'brave', apiKey: 'k' }, undefined, {
+    fetchFn: async () => ({ ok: true, status: 200, json: async () => { throw new SyntaxError('bad json') } }),
+  })
+  await assert.rejects(() => broken.search({ query: 'q' }), /malformed JSON/)
+})
+
+test('move refuses a delta that is not ±1 and never drops the entry', async () => {
+  const { createProviderHandler } = await import('../index.mjs')
+  const settings = fakeSettings([
+    { id: 'h-mov01', type: 'exa', enabled: true },
+    { id: 'h-mov02', type: 'brave', enabled: true, apiKey: 'bsa' },
+  ])
+  const handler = createProviderHandler(settings)
+  for (const delta of ['abc', 0, 2, null, undefined]) {
+    const refused = await callHandler(handler, { body: { action: 'move', index: 0, delta } })
+    assert.equal(refused.status, 400, `delta ${String(delta)} must be refused`)
+    assert.equal(refused.payload.code, 'move-invalid-delta')
+    assert.equal(settings.state.providers.length, 2)
+    assert.equal(settings.state.providers[1].id, 'h-mov02')
+  }
+  const moved = await callHandler(handler, { body: { action: 'move', index: 0, delta: 1 } })
+  assert.equal(moved.status, 200)
+  assert.deepEqual(settings.state.providers.map(p => p.id), ['h-mov02', 'h-mov01'])
+})
+
+test('the search permission belongs to the user', async () => {
+  const { createProviderHandler } = await import('../index.mjs')
+  const settings = fakeSettings([])
+  const store = new Map()
+  const credentials = {
+    describe: async ref => ({ configured: store.has(ref) }),
+    set: async (ref, value) => { store.set(ref, value) },
+  }
+  const handler = createProviderHandler(settings, credentials)
+  await callHandler(handler, { body: { action: 'add', draft: { type: 'tavily', apiKey: 'tvly', useSearch: false } } })
+  assert.equal(settings.state.providers[0].useSearch, false)
+  // Fetching still follows the type: Tavily can, so it stays allowed.
+  assert.equal(settings.state.providers[0].useFetch, true)
+  await callHandler(handler, { body: { action: 'save', index: 0, draft: { enabled: true, useSearch: true, useFetch: false } } })
+  assert.equal(settings.state.providers[0].useSearch, true)
+  assert.equal(settings.state.providers[0].useFetch, false)
+})
+
+test('the provider route refuses a body that is not JSON', async () => {
+  const { createProviderHandler } = await import('../index.mjs')
+  const settings = fakeSettings([])
+  const handler = createProviderHandler(settings)
+  const response = await callHandler(handler, { headers: { 'content-type': 'application/x-www-form-urlencoded' } })
+  assert.equal(response.status, 415)
+  assert.equal(response.payload.code, 'unsupported-media-type')
 })

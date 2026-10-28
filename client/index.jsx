@@ -269,12 +269,10 @@ function WebSearchPageInner(props) {
   const [error, setError] = useState(null)
   const [loading, setLoading] = useState(true)
   const [active, setActive] = useState('')
-  const [registered, setRegistered] = useState(null)
 
   const apply = payload => {
     if (Array.isArray(payload?.providers)) setProviders(payload.providers)
     if (typeof payload?.searchProvider === 'string') setActive(payload.searchProvider)
-    if (typeof payload?.registered === 'boolean') setRegistered(payload)
   }
 
   const run = async (work) => {
@@ -383,7 +381,7 @@ function WebSearchPageInner(props) {
         }
         setTests(previous => ({ ...previous, [provider.id]: result }))
       } catch (e) {
-        const detail = e?.name === 'AbortError' ? 'timed out' : String(e?.message ?? e)
+        const detail = e?.name === 'AbortError' ? t('test.timeout') : String(e?.message ?? e)
         setTests(previous => ({
           ...previous,
           [provider.id]: { search: { ok: false, detail }, fetch: { skipped: true } },

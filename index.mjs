@@ -172,7 +172,10 @@ export function createExaProvider(config, credentials, { fetchFn = fetch } = {})
       }
       let data
       try { data = await response.json() } catch (error) { throw new WebError(`Exa returned malformed JSON: ${String(error)}`, 'WEB_PROVIDER_ERROR', { cause: error }) }
-      const sources = normalizeSources(data?.results)
+      if (data === null || typeof data !== 'object' || !Array.isArray(data.results)) {
+        throw new WebError('Exa returned no results array', 'WEB_PROVIDER_ERROR')
+      }
+      const sources = normalizeSources(data.results)
       return { sources, truncated: request.maxResults !== undefined && sources.length > request.maxResults }
     },
     /**
@@ -1314,19 +1317,6 @@ export function createFetchAggregator(source) {
   }
 }
 
-export function describeProviders(configs) {  return configs.map(config => ({
-    id: config.id,
-    type: config.type,
-    desc: config.desc ?? '',
-    credentialRef: config.credentialRef ?? null,
-    enabled: config.enabled !== false,
-    ...(config.endpoints !== undefined ? { endpoints: config.endpoints } : {}),
-    ...(config.throttle !== undefined ? { throttle: config.throttle } : {}),
-    ...(config.config !== undefined ? { config: config.config } : {}),
-    configured: config.type === 'internal' ? true : Boolean(config.credentialRef),
-    available: config.enabled !== false,
-  }))
-}
 
 export function isFallbackError(error) {
   return [
@@ -1679,6 +1669,12 @@ export function createProviderHandler(settings, credentials = null) {
 
   return async (request, response) => {
     try {
+      if (request.method === 'POST') {
+        const contentType = String(request.headers?.['content-type'] ?? '')
+        if (!contentType.includes('application/json')) {
+          return json(response, 415, { error: 'expected application/json', code: 'unsupported-media-type' })
+        }
+      }
       const url = new URL(request.url ?? '/', 'http://localhost')
       const path = url.pathname.startsWith(ROUTE_PREFIX) ? url.pathname.slice(ROUTE_PREFIX.length) || '/' : url.pathname
 
@@ -1712,7 +1708,6 @@ export function createProviderHandler(settings, credentials = null) {
           return json(response, 400, { error: `unsupported provider type ${JSON.stringify(type)}`, code: 'unsupported-type', params: { type } })
         }
         const caps = PROVIDER_CAPABILITIES[type]
-        const typeSearch = caps.search !== false
         const typeFetch = caps.fetch === true
         const apiKey = String(draft.apiKey ?? '').trim()
         if (apiKey === '') return json(response, 400, { error: 'an API key is required', code: 'key-required' })
@@ -1729,7 +1724,9 @@ export function createProviderHandler(settings, credentials = null) {
           apiKey: stored ? '' : apiKey,
           credentialRef: credentialRefOf,
           enabled: draft.enabled !== false,
-          useSearch: typeSearch !== false,
+          // Search is the user's choice; only fetching is limited by the type, since
+          // several types have no page-retrieval endpoint at all.
+          useSearch: draft.useSearch !== false,
           useFetch: typeFetch === true && draft.useFetch !== false,
         })
       } else if (action === 'save') {
@@ -1737,14 +1734,13 @@ export function createProviderHandler(settings, credentials = null) {
         const draft = body.draft ?? {}
         const existingType = providers[index].type ?? 'exa'
         const caps = PROVIDER_CAPABILITIES[existingType] ?? { search: true, fetch: true }
-        const typeSearch = caps.search !== false
         const typeFetch = caps.fetch === true
         const next = {
           ...providers[index],
           desc: String(draft.desc ?? '').trim(),
           model: String(draft.model ?? '').trim(),
           enabled: draft.enabled !== false,
-          useSearch: typeSearch !== false,
+          useSearch: draft.useSearch !== false,
           useFetch: typeFetch === true && draft.useFetch !== false,
         }
         const apiKey = String(draft.apiKey ?? '').trim()
@@ -1764,8 +1760,14 @@ export function createProviderHandler(settings, credentials = null) {
         forgetStats(removed?.id ?? '')
       } else if (action === 'move') {
         const index = indexOf(providers, body.index)
-        const target = index + Number(body.delta ?? 0)
-        if (target < 0 || target >= providers.length) return json(response, 400, { error: 'move is out of range', code: 'move-out-of-range' })
+        const delta = Number(body.delta)
+        if (!Number.isInteger(delta) || (delta !== 1 && delta !== -1)) {
+          return json(response, 400, { error: 'move needs delta ±1', code: 'move-invalid-delta' })
+        }
+        const target = index + delta
+        if (target < 0 || target >= providers.length) {
+          return json(response, 400, { error: 'move is out of range', code: 'move-out-of-range' })
+        }
         ;[providers[index], providers[target]] = [providers[target], providers[index]]
       } else if (action === 'test') {
         // Exercises the provider the way a real request would, so a wrong key or a
@@ -1910,19 +1912,23 @@ export function apply(ctx, config = {}) {
       runtimeState.step = 'web inject entered'
       // `ctx.get` may refuse a service this fiber did not declare, so a lookup that
       // throws must not take the whole registration down with it.
-      const credentials = shared.credentials
-      const settings = shared.settings
+      // Read through `shared`, never captured: the credentials service mounts after
+      // this fiber starts, and a snapshot taken here stays undefined for the whole
+      // process — which silently marked every provider "unavailable".
+      const credentials = () => shared.credentials
+      const settings = () => shared.settings
       /** The current provider objects, in list order, freshly built for this call. */
       const liveProviders = () => {
         let configs = fallbackConfigs
-        if (typeof settings?.describe === 'function') {
-          const descriptor = settings.describe().find(entry => String(entry.ns) === SETTINGS_NAMESPACE)
+        const settingsService = settings()
+        if (typeof settingsService?.describe === 'function') {
+          const descriptor = settingsService.describe().find(entry => String(entry.ns) === SETTINGS_NAMESPACE)
           const stored = descriptor?.value?.providers
           if (Array.isArray(stored)) configs = normalizeConfigs(stored)
         }
         return configs
           .filter(provider => provider.enabled !== false)
-          .map(provider => countProvider(createProvider(provider, credentials)))
+          .map(provider => countProvider(createProvider(provider, credentials())))
       }
       runtimeState.step = 'services resolved'
       let dispose
