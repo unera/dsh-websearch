@@ -36,6 +36,10 @@ var import_jsx_runtime = require("react/jsx-runtime");
 var NS = "dsh-websearch";
 var en = {
   "nav.title": "Web search",
+  "help.list": "Add the providers you need to the list below. A search walks them from top to bottom until they run out or a result is found.",
+  "help.registration": "Registering makes this aggregator the active provider. If something here breaks, unregister: DSH falls back to its built-in providers and nothing is deleted. A restart applies either change.",
+  "page.register": "Register",
+  "page.unregister": "Unregister",
   "page.hint": "Exa providers used for web search. Description is optional; a provider can be enabled once its API key is stored.",
   "page.activeSelf": "This aggregator is the active search provider.",
   "page.activeOther": "Active search provider: ",
@@ -100,6 +104,10 @@ var en = {
 };
 var ru = {
   "nav.title": "\u0412\u0435\u0431-\u043F\u043E\u0438\u0441\u043A",
+  "help.list": "\u0414\u043E\u0431\u0430\u0432\u044C\u0442\u0435 \u043D\u0443\u0436\u043D\u043E\u0433\u043E \u043F\u0440\u043E\u0432\u0430\u0439\u0434\u0435\u0440\u0430 \u0432 \u0441\u043F\u0438\u0441\u043E\u043A \u043D\u0438\u0436\u0435. \u041F\u0440\u0438 \u0440\u0430\u0431\u043E\u0442\u0435 \u043F\u043E\u0438\u0441\u043A \u0431\u0443\u0434\u0435\u0442 \u043F\u0435\u0440\u0435\u0431\u0438\u0440\u0430\u0442\u044C \u0438\u0445 \u0441\u0432\u0435\u0440\u0445\u0443 \u0432\u043D\u0438\u0437, \u043F\u043E\u043A\u0430 \u043E\u043D\u0438 \u043D\u0435 \u0438\u0441\u0447\u0435\u0440\u043F\u0430\u044E\u0442\u0441\u044F \u0438\u043B\u0438 \u043D\u0435 \u0431\u0443\u0434\u0435\u0442 \u0434\u043E\u0441\u0442\u0438\u0433\u043D\u0443\u0442 \u0440\u0435\u0437\u0443\u043B\u044C\u0442\u0430\u0442.",
+  "help.registration": "\u0420\u0435\u0433\u0438\u0441\u0442\u0440\u0430\u0446\u0438\u044F \u0434\u0435\u043B\u0430\u0435\u0442 \u0430\u0433\u0440\u0435\u0433\u0430\u0442\u043E\u0440 \u0430\u043A\u0442\u0438\u0432\u043D\u044B\u043C. \u0415\u0441\u043B\u0438 \u0437\u0434\u0435\u0441\u044C \u0447\u0442\u043E-\u0442\u043E \u0441\u043B\u043E\u043C\u0430\u0435\u0442\u0441\u044F \u2014 \u043E\u0442\u0437\u043E\u0432\u0438\u0442\u0435 \u0440\u0435\u0433\u0438\u0441\u0442\u0440\u0430\u0446\u0438\u044E: DSH \u0432\u0435\u0440\u043D\u0451\u0442\u0441\u044F \u043A \u0432\u0441\u0442\u0440\u043E\u0435\u043D\u043D\u044B\u043C \u043F\u0440\u043E\u0432\u0430\u0439\u0434\u0435\u0440\u0430\u043C, \u043D\u0438\u0447\u0435\u0433\u043E \u0443\u0434\u0430\u043B\u044F\u0442\u044C \u043D\u0435 \u043D\u0443\u0436\u043D\u043E. \u041B\u044E\u0431\u043E\u0435 \u0438\u0437 \u0438\u0437\u043C\u0435\u043D\u0435\u043D\u0438\u0439 \u043F\u0440\u0438\u043C\u0435\u043D\u044F\u0435\u0442\u0441\u044F \u043F\u043E\u0441\u043B\u0435 \u043F\u0435\u0440\u0435\u0437\u0430\u043F\u0443\u0441\u043A\u0430.",
+  "page.register": "\u0417\u0430\u0440\u0435\u0433\u0438\u0441\u0442\u0440\u0438\u0440\u043E\u0432\u0430\u0442\u044C",
+  "page.unregister": "\u041E\u0442\u043E\u0437\u0432\u0430\u0442\u044C \u0440\u0435\u0433\u0438\u0441\u0442\u0440\u0430\u0446\u0438\u044E",
   "page.hint": "\u041F\u0440\u043E\u0432\u0430\u0439\u0434\u0435\u0440\u044B Exa \u0434\u043B\u044F \u043F\u043E\u0438\u0441\u043A\u0430 \u0432 \u0438\u043D\u0442\u0435\u0440\u043D\u0435\u0442\u0435. \u041E\u043F\u0438\u0441\u0430\u043D\u0438\u0435 \u043D\u0435\u043E\u0431\u044F\u0437\u0430\u0442\u0435\u043B\u044C\u043D\u043E; \u0432\u043A\u043B\u044E\u0447\u0438\u0442\u044C \u043F\u0440\u043E\u0432\u0430\u0439\u0434\u0435\u0440\u0430 \u043C\u043E\u0436\u043D\u043E \u043F\u043E\u0441\u043B\u0435 \u0441\u043E\u0445\u0440\u0430\u043D\u0435\u043D\u0438\u044F API-\u043A\u043B\u044E\u0447\u0430.",
   "page.activeSelf": "\u042D\u0442\u043E\u0442 \u0430\u0433\u0440\u0435\u0433\u0430\u0442\u043E\u0440 \u2014 \u0430\u043A\u0442\u0438\u0432\u043D\u044B\u0439 \u043F\u0440\u043E\u0432\u0430\u0439\u0434\u0435\u0440 \u043F\u043E\u0438\u0441\u043A\u0430.",
   "page.activeOther": "\u0410\u043A\u0442\u0438\u0432\u043D\u044B\u0439 \u043F\u0440\u043E\u0432\u0430\u0439\u0434\u0435\u0440 \u043F\u043E\u0438\u0441\u043A\u0430: ",
@@ -164,6 +172,10 @@ var ru = {
 };
 var zh = {
   "nav.title": "\u7F51\u7EDC\u641C\u7D22",
+  "help.list": "\u5C06\u9700\u8981\u7684\u63D0\u4F9B\u65B9\u52A0\u5165\u4E0B\u9762\u7684\u5217\u8868\u3002\u641C\u7D22\u65F6\u6309\u4ECE\u4E0A\u5230\u4E0B\u7684\u987A\u5E8F\u4F9D\u6B21\u5C1D\u8BD5\uFF0C\u76F4\u5230\u7528\u5C3D\u6216\u5F97\u5230\u7ED3\u679C\u3002",
+  "help.registration": "\u6CE8\u518C\u540E\u672C\u805A\u5408\u5668\u6210\u4E3A\u6D3B\u52A8\u63D0\u4F9B\u65B9\u3002\u82E5\u6B64\u5904\u51FA\u95EE\u9898\uFF0C\u8BF7\u64A4\u9500\u6CE8\u518C\uFF1ADSH \u4F1A\u56DE\u9000\u5230\u5185\u7F6E\u63D0\u4F9B\u65B9\uFF0C\u4E0D\u4F1A\u5220\u9664\u4EFB\u4F55\u5185\u5BB9\u3002\u4EFB\u4E00\u66F4\u6539\u90FD\u9700\u91CD\u542F\u540E\u751F\u6548\u3002",
+  "page.register": "\u6CE8\u518C",
+  "page.unregister": "\u64A4\u9500\u6CE8\u518C",
   "page.hint": "\u7528\u4E8E\u7F51\u7EDC\u641C\u7D22\u7684 Exa \u63D0\u4F9B\u65B9\u3002\u63CF\u8FF0\u53EF\u9009\uFF1B\u4FDD\u5B58 API \u5BC6\u94A5\u540E\u624D\u80FD\u542F\u7528\u63D0\u4F9B\u65B9\u3002",
   "page.activeSelf": "\u6B64\u805A\u5408\u5668\u662F\u5F53\u524D\u751F\u6548\u7684\u641C\u7D22\u63D0\u4F9B\u65B9\u3002",
   "page.activeOther": "\u5F53\u524D\u751F\u6548\u7684\u641C\u7D22\u63D0\u4F9B\u65B9\uFF1A",
@@ -573,35 +585,46 @@ function WebSearchPageInner(props) {
   return (0, import_jsx_runtime.jsxs)("section", { style: styles.page, children: [
     (0, import_jsx_runtime.jsx)("h2", { style: styles.heading, children: t("nav.title") }),
     (0, import_jsx_runtime.jsx)("p", { style: styles.hint, children: t("page.hint") }),
-    (0, import_jsx_runtime.jsxs)("div", { style: styles.row, children: [
-      (0, import_jsx_runtime.jsx)("span", {
-        style: styles.activeLabel,
-        children: active === "dsh-websearch" ? t("page.activeSelf") : `${t("page.activeOther")}${active === "" ? t("page.activeNone") : active}`
-      }),
-      active === "dsh-websearch" && registered !== null && (0, import_jsx_runtime.jsx)("span", {
-        style: registered.registered ? styles.green : styles.red,
-        children: registered.registered ? t("page.registered") : `${t("page.notRegistered")}${registered.reason || registered.step || t("page.unknown")}`
-      }),
-      active !== "dsh-websearch" && (0, import_jsx_runtime.jsx)("button", {
-        className: "dws-button",
-        disabled: busy,
-        onClick: () => run(() => call("/providers", { action: "select" })),
-        children: t("page.useForSearch")
-      })
+    (0, import_jsx_runtime.jsxs)("div", { className: "dws-plates", children: [
+      (0, import_jsx_runtime.jsx)("div", { className: "dws-card dws-plate-wide", children: (0, import_jsx_runtime.jsx)("p", {
+        style: styles.helpText,
+        children: t("help.list")
+      }) }),
+      (0, import_jsx_runtime.jsx)("div", { className: "dws-card dws-plate-narrow", children: (0, import_jsx_runtime.jsxs)("div", {
+        style: { display: "flex", flexDirection: "column", gap: 8 },
+        children: [
+          (0, import_jsx_runtime.jsx)("span", {
+            style: styles.activeLabel,
+            children: active === "dsh-websearch" ? t("page.activeSelf") : `${t("page.activeOther")}${active === "" ? t("page.activeNone") : active}`
+          }),
+          active === "dsh-websearch" && registered !== null && (0, import_jsx_runtime.jsx)("span", {
+            style: registered.registered ? styles.green : styles.red,
+            children: registered.registered ? t("page.registered") : `${t("page.notRegistered")}${registered.reason || registered.step || t("page.unknown")}`
+          }),
+          (0, import_jsx_runtime.jsxs)("div", { style: styles.row, children: [
+            (0, import_jsx_runtime.jsx)("button", {
+              className: "dws-button",
+              disabled: busy || active === "dsh-websearch",
+              onClick: () => run(() => call("/providers", { action: "select" })),
+              children: t("page.register")
+            }),
+            (0, import_jsx_runtime.jsx)("button", {
+              className: "dws-button",
+              disabled: busy || active !== "dsh-websearch",
+              onClick: () => run(() => call("/providers", { action: "unregister" })),
+              children: t("page.unregister")
+            })
+          ] }),
+          (0, import_jsx_runtime.jsx)("p", { style: styles.helpText, children: t("help.registration") })
+        ]
+      }) })
     ] }),
     (0, import_jsx_runtime.jsxs)("div", { className: "dws-card", children: [
       // Row 1: provider type, description and the secret side by side. Until a type
       // is chosen the two data cells give way to one instruction, so the card keeps
       // a single line of height.
       (0, import_jsx_runtime.jsxs)("div", { className: "dws-fields", children: [
-        (0, import_jsx_runtime.jsx)("select", {
-          className: "dws-field dws-type",
-          value: formType,
-          disabled: busy || editing,
-          title: editing ? t("form.typeLocked") : void 0,
-          onChange: editing ? void 0 : chooseType,
-          children: typeOptions
-        }),
+        typeSelect,
         showingForm ? (0, import_jsx_runtime.jsx)("input", {
           className: "dws-field dws-grow",
           type: "text",
@@ -802,6 +825,7 @@ function WebSearchPageInner(props) {
 var styles = {
   page: { display: "flex", flexDirection: "column", gap: 14, maxWidth: 780, minWidth: 0 },
   heading: { margin: 0, fontSize: 20, fontWeight: 600 },
+  helpText: { fontSize: 11, lineHeight: 1.45, margin: 0, opacity: 0.7 },
   hint: { margin: 0, opacity: 0.7, fontSize: 13 },
   list: { display: "flex", flexDirection: "column", gap: 2, listStyle: "none", margin: 0, padding: 0 },
   item: { alignItems: "stretch", display: "flex", flexDirection: "column", gap: 2 },

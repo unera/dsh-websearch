@@ -1817,6 +1817,9 @@ export function createProviderHandler(settings, credentials = null) {
         return json(response, 200, { search, fetch })
       } else if (action === 'reset') {
         resetStats(providers[indexOf(providers, body.index)]?.id ?? '')
+      } else if (action === 'unregister') {
+        // Hands both capabilities back to whoever DSH picks when no provider is named.
+        await settings.update(WEB_NAMESPACE, { searchProvider: '', fetchProvider: '' })
       } else if (action === 'select') {
         // The `web` seam never adopts a provider on its own; the page points it here
         // for both capabilities, because one key covers search and fetch alike.

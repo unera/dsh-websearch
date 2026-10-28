@@ -462,24 +462,43 @@ function WebSearchPageInner(props) {
   return jsxs('section', { style: styles.page, children: [
     jsx('h2', { style: styles.heading, children: t('nav.title') }),
     jsx('p', { style: styles.hint, children: t('page.hint') }),
-    jsxs('div', { style: styles.row, children: [
-      jsx('span', {
-        style: styles.activeLabel,
-        children: active === 'dsh-websearch'
-          ? t('page.activeSelf')
-          : `${t('page.activeOther')}${active === '' ? t('page.activeNone') : active}`,
-      }),
-      active === 'dsh-websearch' && registered !== null && jsx('span', {
-        style: registered.registered ? styles.green : styles.red,
-        children: registered.registered
-          ? t('page.registered')
-          : `${t('page.notRegistered')}${registered.reason || registered.step || t('page.unknown')}`,
-      }),
-      active !== 'dsh-websearch' && jsx('button', {
-        className: 'dws-button', disabled: busy,
-        onClick: () => run(() => call('/providers', { action: 'select' })),
-        children: t('page.useForSearch'),
-      }),
+    jsxs('div', { className: 'dws-plates', children: [
+      jsx('div', { className: 'dws-card dws-plate-wide', children: jsx('p', {
+        style: styles.helpText,
+        children: t('help.list'),
+      }) }),
+      jsx('div', { className: 'dws-card dws-plate-narrow', children: jsxs('div', {
+        style: { display: 'flex', flexDirection: 'column', gap: 8 },
+        children: [
+          jsx('span', {
+            style: styles.activeLabel,
+            children: active === 'dsh-websearch'
+              ? t('page.activeSelf')
+              : `${t('page.activeOther')}${active === '' ? t('page.activeNone') : active}`,
+          }),
+          active === 'dsh-websearch' && registered !== null && jsx('span', {
+            style: registered.registered ? styles.green : styles.red,
+            children: registered.registered
+              ? t('page.registered')
+              : `${t('page.notRegistered')}${registered.reason || registered.step || t('page.unknown')}`,
+          }),
+          jsxs('div', { style: styles.row, children: [
+            jsx('button', {
+              className: 'dws-button',
+              disabled: busy || active === 'dsh-websearch',
+              onClick: () => run(() => call('/providers', { action: 'select' })),
+              children: t('page.register'),
+            }),
+            jsx('button', {
+              className: 'dws-button',
+              disabled: busy || active !== 'dsh-websearch',
+              onClick: () => run(() => call('/providers', { action: 'unregister' })),
+              children: t('page.unregister'),
+            }),
+          ] }),
+          jsx('p', { style: styles.helpText, children: t('help.registration') }),
+        ],
+      }) }),
     ] }),
 
     jsxs('div', { className: 'dws-card', children: [
@@ -487,14 +506,7 @@ function WebSearchPageInner(props) {
       // is chosen the two data cells give way to one instruction, so the card keeps
       // a single line of height.
       jsxs('div', { className: 'dws-fields', children: [
-        jsx('select', {
-          className: 'dws-field dws-type',
-          value: formType,
-          disabled: busy || editing,
-          title: editing ? t('form.typeLocked') : undefined,
-          onChange: editing ? undefined : chooseType,
-          children: typeOptions,
-        }),
+        typeSelect,
         showingForm
           ? jsx('input', {
             className: 'dws-field dws-grow', type: 'text', value: draft.desc,
@@ -684,6 +696,7 @@ function WebSearchPageInner(props) {
 const styles = {
   page: { display: 'flex', flexDirection: 'column', gap: 14, maxWidth: 780, minWidth: 0 },
   heading: { margin: 0, fontSize: 20, fontWeight: 600 },
+  helpText: { fontSize: 11, lineHeight: 1.45, margin: 0, opacity: 0.7 },
   hint: { margin: 0, opacity: 0.7, fontSize: 13 },
   list: { display: 'flex', flexDirection: 'column', gap: 2, listStyle: 'none', margin: 0, padding: 0 },
   item: { alignItems: 'stretch', display: 'flex', flexDirection: 'column', gap: 2 },
