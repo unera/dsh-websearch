@@ -180,8 +180,15 @@ var CSS = `
   border: 1px solid rgba(127,127,127,.3); border-radius: 10px; box-sizing: border-box;
   display: flex; flex-direction: column; gap: 10px; max-width: 100%; min-width: 0; padding: 12px;
 }
-.dws-fieldset { display: flex; flex-direction: column; gap: 4px; min-width: 0; width: 100%; }
-.dws-label { font-size: 12px; opacity: .7; }
+.dws-note { flex: 1 1 100%; font-size: 13px; opacity: .7; }
+/*
+ * Two packed rows instead of a tall column: provider, description and secret share
+ * the first line, the checkbox and the buttons the second. Labels are dropped on
+ * purpose \u2014 the placeholders say the same in less height.
+ */
+.dws-fields { align-items: center; display: flex; flex-wrap: wrap; gap: 8px; min-width: 0; width: 100%; }
+.dws-fields > .dws-type { flex: 0 1 140px; min-width: 110px; }
+.dws-fields > .dws-grow { flex: 1 1 150px; min-width: 0; }
 .dws-actions { align-items: center; display: flex; flex-wrap: wrap; gap: 8px; }
 .dws-button {
   background: transparent; border: 1px solid rgba(127,127,127,.35); border-radius: 6px;
@@ -294,10 +301,6 @@ function WebSearchPage(props) {
       (0, import_jsx_runtime.jsx)("p", { children: t("common.loading") })
     ] });
   }
-  const fieldset = (label, control) => (0, import_jsx_runtime.jsxs)("label", { className: "dws-fieldset", children: [
-    (0, import_jsx_runtime.jsx)("span", { className: "dws-label", children: label }),
-    control
-  ] });
   const typeOptions = [];
   if (!editing && formType === "") {
     typeOptions.push((0, import_jsx_runtime.jsx)("option", { value: "", children: t("form.typeNone"), key: "" }));
@@ -336,12 +339,12 @@ function WebSearchPage(props) {
       })
     ] }),
     (0, import_jsx_runtime.jsxs)("div", { className: "dws-card", children: [
-      // One row, three cells: the provider type, its description, and the key with
-      // the button that submits the form. Until a type is chosen the two data cells
-      // carry an instruction instead of an input, so the form keeps one line.
-      (0, import_jsx_runtime.jsxs)("div", { className: "dws-form", children: [
+      // Row 1: provider type, description and the secret side by side. Until a type
+      // is chosen the two data cells give way to one instruction, so the card keeps
+      // a single line of height.
+      (0, import_jsx_runtime.jsxs)("div", { className: "dws-fields", children: [
         (0, import_jsx_runtime.jsx)("select", {
-          className: "dws-field",
+          className: "dws-field dws-type",
           value: formType,
           disabled: busy || editing,
           title: editing ? t("form.typeLocked") : void 0,
@@ -349,7 +352,7 @@ function WebSearchPage(props) {
           children: typeOptions
         }),
         showingForm ? (0, import_jsx_runtime.jsx)("input", {
-          className: "dws-field",
+          className: "dws-field dws-grow",
           type: "text",
           value: draft.desc,
           placeholder: t("form.descPlaceholder"),
@@ -358,25 +361,18 @@ function WebSearchPage(props) {
           disabled: busy,
           onChange: (e) => setDraft({ ...draft, desc: e.target.value })
         }) : (0, import_jsx_runtime.jsx)("span", { className: "dws-note", children: t("form.chooseHint") }),
-        (0, import_jsx_runtime.jsxs)("div", { className: "dws-key", children: [
-          showingForm ? (0, import_jsx_runtime.jsx)("input", {
-            className: "dws-field",
-            type: "password",
-            value: draft.apiKey,
-            name: "dsh-websearch-key",
-            autoComplete: "new-password",
-            disabled: busy,
-            placeholder: hasStoredKey ? t("form.secretStored") : t("form.secretNew"),
-            onChange: (e) => setDraft({ ...draft, apiKey: e.target.value })
-          }) : (0, import_jsx_runtime.jsx)("span", { className: "dws-note", children: t("form.chooseHint") }),
-          (0, import_jsx_runtime.jsx)("button", {
-            className: "dws-button",
-            disabled: !canSubmit,
-            onClick: submit,
-            children: editing ? t("form.save") : t("form.add")
-          })
-        ] })
+        showingForm && (0, import_jsx_runtime.jsx)("input", {
+          className: "dws-field dws-grow",
+          type: "password",
+          value: draft.apiKey,
+          name: "dsh-websearch-key",
+          autoComplete: "new-password",
+          disabled: busy,
+          placeholder: hasStoredKey ? t("form.secretStored") : t("form.secretNew"),
+          onChange: (e) => setDraft({ ...draft, apiKey: e.target.value })
+        })
       ] }),
+      // Row 2: the switch and what submits or drops the draft.
       showingForm && (0, import_jsx_runtime.jsxs)("div", { className: "dws-actions", children: [
         (0, import_jsx_runtime.jsxs)("label", { style: styles.enabled, title: canEnable ? "" : t("form.needKey"), children: [
           (0, import_jsx_runtime.jsx)("input", {
@@ -387,7 +383,13 @@ function WebSearchPage(props) {
           }),
           ` ${t("form.enabled")}`
         ] }),
-        editing && (0, import_jsx_runtime.jsx)("button", {
+        (0, import_jsx_runtime.jsx)("button", {
+          className: "dws-button",
+          disabled: !canSubmit,
+          onClick: submit,
+          children: editing ? `${t("form.save")} ${typeLabel(formType)}` : t("form.add")
+        }),
+        (0, import_jsx_runtime.jsx)("button", {
           className: "dws-button",
           disabled: busy,
           onClick: reset,
