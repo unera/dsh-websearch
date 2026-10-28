@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { Component, useEffect, useState } from 'react'
 import { jsx, jsxs } from 'react/jsx-runtime'
 import { DICTIONARIES, NS, TYPE_LABELS, TYPE_OPTIONS } from './locales.js'
 
@@ -40,20 +40,37 @@ const BRAVE_ICON = 'data:image/svg+xml;utf8,' + encodeURIComponent(
 )
 
 
-/** Frames for the running indicator; a text spinner animates where emoji cannot. */
-const SPINNER_FRAMES = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
+/**
+ * Running indicator: one glyph rotated by CSS. Deliberately stateless — a timer
+ * inside this page would re-render the whole section while a test runs.
+ */
+const spinner = () => jsx('span', { className: 'dws-spin', children: '⟳' })
+
 
 /**
- * Braille spinner driven by a timer, so progress is visible even when CSS
- * animations are suppressed (reduced motion, some embedded views).
+ * Keeps a failure inside this section: React unmounts the tree on a render error,
+ * which on the settings page looks like the whole panel vanishing.
  */
-function Spinner() {
-  const [frame, setFrame] = useState(0)
-  useEffect(() => {
-    const timer = setInterval(() => setFrame(current => (current + 1) % SPINNER_FRAMES.length), 90)
-    return () => clearInterval(timer)
-  }, [])
-  return jsx('span', { children: SPINNER_FRAMES[frame] })
+class SectionBoundary extends Component {
+  constructor(props) {
+    super(props)
+    this.state = { error: null }
+  }
+
+  static getDerivedStateFromError(error) {
+    return { error }
+  }
+
+  render() {
+    if (this.state.error === null) return this.props.children
+    return jsxs('section', {
+      style: { display: 'flex', flexDirection: 'column', gap: 8, padding: 16 },
+      children: [
+        jsx('h3', { style: { fontSize: 14, margin: 0 }, children: 'dsh-websearch' }),
+        jsx('p', { style: { color: '#f85149', fontSize: 12, margin: 0 }, children: String(this.state.error?.message ?? this.state.error) }),
+      ],
+    })
+  }
 }
 
 /** Provider type → icon data URI. A type without an entry simply shows no icon. */
@@ -205,7 +222,7 @@ const uiLanguage = t => {
   return 'en'
 }
 
-export function WebSearchPage(props) {
+function WebSearchPageInner(props) {
   const t = typeof props?.t === 'function' ? props.t : key => key
   const [providers, setProviders] = useState([])
   const [selected, setSelected] = useState(null)
@@ -613,7 +630,7 @@ export function WebSearchPage(props) {
                   void runOneTest(index, provider)
                 },
                 children: running
-                  ? jsx(Spinner)
+                  ? spinner()
                   : (tested === undefined ? '⟳' : (failed ? '!' : '✓')),
                 style: tested === undefined || running
                   ? undefined
@@ -756,6 +773,14 @@ export function apply(ctx) {
     locale: NS,
     label: () => t('nav.title'),
   }, WebSearchPage))
+}
+
+/**
+ * The settings section: the page itself wrapped in a boundary, so a failure shows
+ * a message here instead of taking the whole settings panel down with it.
+ */
+export function WebSearchPage(props) {
+  return jsx(SectionBoundary, { children: jsx(WebSearchPageInner, props) })
 }
 
 export const inject = ['slots', 'locale']
