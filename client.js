@@ -155,8 +155,8 @@ var zh = {
   "common.never": "\u4ECE\u672A"
 };
 var DICTIONARIES = { en, ru, zh };
-var TYPE_LABELS = { exa: "Exa", deepseek: "DeepSeek" };
-var TYPE_OPTIONS = ["exa", "deepseek"];
+var TYPE_LABELS = { exa: "Exa", deepseek: "DeepSeek", openai: "OpenAI" };
+var TYPE_OPTIONS = ["exa", "deepseek", "openai"];
 
 // client/index.jsx
 var SECTION_ID = "websearch";

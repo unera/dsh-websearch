@@ -24,6 +24,10 @@ export const DEEPSEEK_FETCH_URL = 'https://api.deepseek.com/v1/tools/fetch'
 export const DEEPSEEK_BASE_URL = 'https://api.deepseek.com/v1/tools'
 /** Results requested per search, the service's own default. */
 export const DEEPSEEK_DEFAULT_COUNT = 10
+/** OpenAI Responses endpoint; the hosted `web_search` tool travels inside it. */
+export const OPENAI_RESPONSES_URL = 'https://api.openai.com/v1/responses'
+/** Default search-capable model; a provider entry may name another. */
+export const OPENAI_DEFAULT_MODEL = 'gpt-5.5'
 export const INTERNAL_PROVIDER_ID = 'internal'
 
 const ProviderConfigSchema = z.object({
@@ -341,11 +345,133 @@ export function deepseekFetchText(raw) {
   return found === '' ? undefined : found
 }
 
+/**
+ * Map a Responses API answer onto `WebSearchResult`.
+ *
+ * OpenAI answers with a `web_search_call` item (its `action.sources` carry every
+ * URL the tool consulted when the request asked for them) plus a `message` whose
+ * text blocks hold `url_citation` annotations. Both are folded together here,
+ * citations supplying titles for URLs the call listing already named.
+ *
+ * @param payload - Parsed Responses body.
+ * @returns Sources in first-seen order.
+ * @throws {@link WebError} when the answer carries no search at all.
+ */
+export function mapOpenaiResponse(payload) {
+  const output = Array.isArray(payload?.output) ? payload.output : []
+  const calls = output.filter(item => item?.type === 'web_search_call')
+  if (calls.length === 0) {
+    throw new WebError(
+      'OpenAI returned no web_search_call; the request may not have triggered a search',
+      'WEB_PROVIDER_ERROR',
+    )
+  }
+  const seen = new Map()
+  const add = (url, title) => {
+    if (typeof url !== 'string' || url === '') return
+    const known = seen.get(url)
+    if (known === undefined) seen.set(url, typeof title === 'string' && title !== '' ? title : undefined)
+    else if (known === undefined && typeof title === 'string' && title !== '') seen.set(url, title)
+  }
+  for (const call of calls) {
+    for (const source of call.action?.sources ?? []) add(source?.url, source?.title)
+  }
+  for (const item of output) {
+    if (item?.type !== 'message') continue
+    for (const block of item.content ?? []) {
+      for (const cite of block?.annotations ?? []) {
+        if (cite?.type === 'url_citation') add(cite.url, cite.title)
+      }
+    }
+  }
+  const sources = [...seen].map(([url, title]) => ({ url, ...title === undefined ? {} : { title } }))
+  return { sources, truncated: false }
+}
+
+/**
+ * OpenAI search: the hosted `web_search` tool inside one Responses call.
+ *
+ * OpenAI publishes no standalone search endpoint and no page-retrieval endpoint,
+ * so this provider searches only — the fetch aggregator skips it because it has no
+ * `fetch` method. `tool_choice: 'required'` forces the tool, because with `auto`
+ * the model may answer from memory instead of searching.
+ *
+ * @param config - One provider entry.
+ * @param credentials - Optional credentials seam used to resolve the key reference.
+ * @param options.fetchFn - Transport, replaceable in tests.
+ */
+export function createOpenaiProvider(config, credentials, { fetchFn = fetch } = {}) {
+  const id = normalizeProviderId(config.id)
+  const ref = credentialRef(config.credentialRef ?? makeCredentialRef('openai', id))
+  const endpoint = String(config.baseUrl ?? '').trim() || OPENAI_RESPONSES_URL
+  const model = String(config.model ?? '').trim() || OPENAI_DEFAULT_MODEL
+  const keyInConfig = String(config.apiKey ?? '').trim() !== ''
+  const keyInEnv = String(process.env[config.credentialRef ?? ''] ?? '').trim() !== ''
+  return {
+    id,
+    type: 'openai',
+    desc: config.desc ?? '',
+    credentialRef: config.credentialRef ?? makeCredentialRef('openai', id),
+    enabled: config.enabled !== false,
+    throttle: config.throttle ?? undefined,
+    config: config.config ?? {},
+    available: () => keyInConfig || Boolean(credentials) || keyInEnv,
+    async search(request, signal) {
+      const query = String(request.query ?? '').trim()
+      if (!query) return { sources: [], truncated: false }
+      const resolved = await credentials?.resolve(ref)
+      const apiKey = String(config.apiKey ?? '').trim()
+        || String(resolved?.value ?? '').trim()
+        || String(process.env[ref] ?? '').trim()
+      if (!apiKey) {
+        throw new WebError(`OpenAI search has no API key for "${ref}"`, 'WEB_PROVIDER_CREDENTIAL_MISSING')
+      }
+      const body = {
+        model,
+        tools: [{ type: 'web_search' }],
+        tool_choice: 'required',
+        // Ask for the complete source list, not only the inline citations.
+        include: ['web_search_call.action.sources'],
+        input: `Search the web and list the sources for: ${query}`,
+      }
+      let response
+      try {
+        response = await fetchFn(endpoint, {
+          method: 'POST',
+          redirect: 'error',
+          headers: {
+            authorization: `Bearer ${apiKey}`,
+            'content-type': 'application/json',
+            accept: 'application/json',
+          },
+          body: JSON.stringify(body),
+          signal,
+        })
+      } catch (error) {
+        if (signal?.aborted) throw new WebError('OpenAI search aborted', 'WEB_ABORTED', { cause: error })
+        throw new WebError(`OpenAI search request failed: ${String(error)}`, 'WEB_PROVIDER_ERROR', { cause: error })
+      }
+      if (response.status === 401 || response.status === 403) throw new WebError('OpenAI rejected the configured API key.', 'WEB_PROVIDER_CREDENTIAL_INVALID')
+      if (response.status === 429) throw new WebError('OpenAI search was rate limited.', 'WEB_PROVIDER_RATE_LIMITED')
+      if (!response.ok) {
+        const detail = (await response.text().catch(() => '')).replace(/\s+/g, ' ').slice(0, 240)
+        throw new WebError(`OpenAI search failed (${response.status})${detail ? `: ${detail}` : '.'}`, 'WEB_PROVIDER_ERROR')
+      }
+      let payload
+      try { payload = await response.json() } catch (error) {
+        throw new WebError(`OpenAI returned malformed JSON: ${String(error)}`, 'WEB_PROVIDER_ERROR', { cause: error })
+      }
+      return mapOpenaiResponse(payload)
+    },
+  }
+}
+
 /** Build the provider a config entry names; the type decides the wire protocol. */
 export function createProvider(config, credentials, options) {
-  return (config.type ?? 'exa') === 'deepseek'
-    ? createDeepseekProvider(config, credentials, options)
-    : createExaProvider(config, credentials, options)
+  const type = config.type ?? 'exa'
+  if (type === 'deepseek') return createDeepseekProvider(config, credentials, options)
+  if (type === 'openai') return createOpenaiProvider(config, credentials, options)
+  return createExaProvider(config, credentials, options)
 }
 
 export function createSearchAggregator(source, { deduplicate = true } = {}) {
@@ -479,7 +605,7 @@ export const SEARCH_PROVIDER_ID = 'dsh-websearch'
  * Provider types this build can talk to. The form's select offers exactly these,
  * and `/providers` refuses anything else instead of storing a type it cannot run.
  */
-export const PROVIDER_TYPES = Object.freeze(['exa', 'deepseek'])
+export const PROVIDER_TYPES = Object.freeze(['exa', 'deepseek', 'openai'])
 /** The `web` seam's namespace, whose `searchProvider` field selects the active provider. */
 export const WEB_NAMESPACE = 'web'
 

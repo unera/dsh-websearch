@@ -444,3 +444,63 @@ test('counts fetches separately from searches', async () => {
   assert.equal(statsOf('h-fetch2').fetchErrors, 1)
   assert.equal(statsOf('h-fetch2').lastFetchError > 0, true)
 })
+
+test('maps a Responses answer to sources from the call and the citations', async () => {
+  const { mapOpenaiResponse } = await import('../index.mjs')
+  const payload = {
+    output: [
+      {
+        type: 'web_search_call',
+        action: { type: 'search', sources: [
+          { url: 'https://a.example', title: 'A' },
+          { url: 'https://b.example' },
+        ] },
+      },
+      {
+        type: 'message',
+        content: [{ type: 'output_text', annotations: [
+          { type: 'url_citation', url: 'https://b.example', title: 'B from citation' },
+          { type: 'url_citation', url: 'https://c.example', title: 'C' },
+        ] }],
+      },
+    ],
+  }
+  assert.deepEqual(mapOpenaiResponse(payload).sources, [
+    { url: 'https://a.example', title: 'A' },
+    { url: 'https://b.example', title: 'B from citation' },
+    { url: 'https://c.example', title: 'C' },
+  ])
+  assert.throws(() => mapOpenaiResponse({ output: [] }), /no web_search_call/)
+})
+
+test('OpenAI provider forces the hosted web_search tool', async () => {
+  const { createProvider } = await import('../index.mjs')
+  const calls = []
+  const provider = createProvider({ id: 'h-oai01', type: 'openai', apiKey: 'sk-1', enabled: true }, undefined, {
+    fetchFn: async (url, init) => {
+      calls.push({ url, init })
+      return {
+        ok: true, status: 200,
+        json: async () => ({ output: [
+          { type: 'web_search_call', action: { sources: [{ url: 'https://x.example', title: 'X' }] } },
+          { type: 'message', content: [{ type: 'output_text', annotations: [] }] },
+        ] }),
+      }
+    },
+  })
+  assert.equal(provider.type, 'openai')
+  // No page-retrieval API exists, so the fetch aggregator must skip this provider.
+  assert.equal(typeof provider.fetch, 'undefined')
+
+  const result = await provider.search({ query: 'курс доллара' })
+  assert.deepEqual(result.sources, [{ url: 'https://x.example', title: 'X' }])
+
+  const [{ url, init }] = calls
+  assert.equal(url, 'https://api.openai.com/v1/responses')
+  assert.equal(init.headers.authorization, 'Bearer sk-1')
+  const body = JSON.parse(init.body)
+  assert.deepEqual(body.tools, [{ type: 'web_search' }])
+  assert.equal(body.tool_choice, 'required')
+  assert.deepEqual(body.include, ['web_search_call.action.sources'])
+  assert.match(body.input, /курс доллара/)
+})
