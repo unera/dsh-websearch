@@ -34,6 +34,7 @@ const PROVIDER_CAPS = {
   exa: { search: true, fetch: true },
   deepseek: { search: true, fetch: true },
   openai: { search: true, fetch: false },
+  jina: { search: true, fetch: true },
 }
 
 const capsKey = capabilities => {

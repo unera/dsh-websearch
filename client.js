@@ -179,8 +179,8 @@ var zh = {
   "common.never": "\u4ECE\u672A"
 };
 var DICTIONARIES = { en, ru, zh };
-var TYPE_LABELS = { exa: "Exa", deepseek: "DeepSeek", openai: "OpenAI" };
-var TYPE_OPTIONS = ["exa", "deepseek", "openai"];
+var TYPE_LABELS = { exa: "Exa", deepseek: "DeepSeek", openai: "OpenAI", jina: "Jina" };
+var TYPE_OPTIONS = ["exa", "deepseek", "openai", "jina"];
 
 // client/index.jsx
 var SECTION_ID = "websearch";
@@ -196,7 +196,8 @@ var typeLabel = (type) => TYPE_LABELS[type] ?? String(type ?? "");
 var PROVIDER_CAPS = {
   exa: { search: true, fetch: true },
   deepseek: { search: true, fetch: true },
-  openai: { search: true, fetch: false }
+  openai: { search: true, fetch: false },
+  jina: { search: true, fetch: true }
 };
 var capsKey = (capabilities) => {
   const search = capabilities?.search !== false;

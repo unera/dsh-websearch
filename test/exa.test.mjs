@@ -589,3 +589,45 @@ test('DeepSeek page retrieval follows redirects and reports the final URL', asyn
   assert.equal(result.url, 'https://example.com/final')
   assert.equal(result.body.kind, 'text')
 })
+
+test('Jina searches and retrieves through its two endpoints', async () => {
+  const { createProvider } = await import('../index.mjs')
+  const calls = []
+  const provider = createProvider({ id: 'h-jina1', type: 'jina', apiKey: 'jk-1', enabled: true }, undefined, {
+    fetchFn: async (url, init) => {
+      calls.push({ url, init })
+      if (url.startsWith('https://s.jina.ai/')) {
+        return { ok: true, status: 200, json: async () => ({ data: [
+          { title: 'A', url: 'https://a.example', description: 'about a' },
+          { title: 'B', url: 'https://b.example', content: 'long text' },
+        ] }) }
+      }
+      return { ok: true, status: 200, url: 'https://example.com/after-redirect', text: async () => '# Page\n\ntext' }
+    },
+  })
+  assert.equal(provider.available(), true)
+
+  const found = await provider.search({ query: 'курс доллара' })
+  assert.deepEqual(found.sources, [
+    { url: 'https://a.example', title: 'A', snippet: 'about a' },
+    { url: 'https://b.example', title: 'B', snippet: 'long text' },
+  ])
+  assert.equal(calls[0].url, 'https://s.jina.ai/%D0%BA%D1%83%D1%80%D1%81%20%D0%B4%D0%BE%D0%BB%D0%BB%D0%B0%D1%80%D0%B0')
+  assert.equal(calls[0].init.headers.authorization, 'Bearer jk-1')
+
+  const page = await provider.fetch({ url: 'https://example.com' })
+  assert.equal(calls[1].url, 'https://r.jina.ai/https://example.com')
+  assert.equal(calls[1].init.redirect, 'follow')
+  assert.equal(page.url, 'https://example.com/after-redirect')
+  assert.equal(page.body.content, '# Page\n\ntext')
+})
+
+test('Jina fetches without a key but refuses to search', async () => {
+  const { createProvider } = await import('../index.mjs')
+  const provider = createProvider({ id: 'h-jina2', type: 'jina', apiKey: '', enabled: true }, undefined, {
+    fetchFn: async () => ({ ok: true, status: 200, text: async () => 'page' }),
+  })
+  assert.equal(provider.available(), true)
+  await assert.rejects(() => provider.search({ query: 'q' }), /no API key/)
+  assert.equal((await provider.fetch({ url: 'https://example.com' })).body.content, 'page')
+})

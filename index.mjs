@@ -28,6 +28,10 @@ export const DEEPSEEK_DEFAULT_COUNT = 10
 export const OPENAI_RESPONSES_URL = 'https://api.openai.com/v1/responses'
 /** Default search-capable model; a provider entry may name another. */
 export const OPENAI_DEFAULT_MODEL = 'gpt-5.5'
+/** Jina Reader retrieves one page as markdown; the URL is appended to this base. */
+export const JINA_READER_URL = 'https://r.jina.ai'
+/** Jina search base; the query is appended. Requires an API key. */
+export const JINA_SEARCH_URL = 'https://s.jina.ai'
 export const INTERNAL_PROVIDER_ID = 'internal'
 
 const ProviderConfigSchema = z.object({
@@ -478,6 +482,133 @@ export function createOpenaiProvider(config, credentials, { fetchFn = fetch } = 
   }
 }
 
+
+/**
+ * Jina: two public HTTP endpoints rather than one API.
+ *
+ * `r.jina.ai/<url>` renders a page to markdown and works without a key (a key only
+ * raises limits), while `s.jina.ai/<query>` answers searches and needs one. The
+ * provider therefore reports itself available whenever either side can run: a
+ * keyless entry still retrieves pages, and a search on it fails as a missing
+ * credential, which the aggregator treats as a reason to try the next provider.
+ *
+ * @param config - One provider entry.
+ * @param credentials - Optional credentials seam used to resolve the key reference.
+ * @param options.fetchFn - Transport, replaceable in tests.
+ */
+export function createJinaProvider(config, credentials, { fetchFn = fetch } = {}) {
+  const id = normalizeProviderId(config.id)
+  const ref = credentialRef(config.credentialRef ?? makeCredentialRef('jina', id))
+  const searchBase = (String(config.baseUrl ?? config.endpoints?.search ?? '').trim() || JINA_SEARCH_URL).replace(/\/+$/, '')
+  const readerBase = (String(config.endpoints?.fetch ?? '').trim() || JINA_READER_URL).replace(/\/+$/, '')
+  const keyInConfig = String(config.apiKey ?? '').trim() !== ''
+  const keyInEnv = String(process.env[config.credentialRef ?? ''] ?? '').trim() !== ''
+  const apiKeyOf = async () => {
+    const resolved = await credentials?.resolve(ref)
+    return String(config.apiKey ?? '').trim()
+      || String(resolved?.value ?? '').trim()
+      || String(process.env[ref] ?? '').trim()
+  }
+  return {
+    id,
+    type: 'jina',
+    desc: config.desc ?? '',
+    credentialRef: config.credentialRef ?? makeCredentialRef('jina', id),
+    enabled: config.enabled !== false,
+    throttle: config.throttle ?? undefined,
+    config: config.config ?? {},
+    // Page retrieval needs no key, so the entry is usable as soon as it exists.
+    available: () => true,
+    async search(request, signal) {
+      const query = String(request.query ?? '').trim()
+      if (!query) return { sources: [], truncated: false }
+      const apiKey = await apiKeyOf()
+      if (!apiKey) {
+        throw new WebError(`Jina search has no API key for "${ref}"`, 'WEB_PROVIDER_CREDENTIAL_MISSING')
+      }
+      let response
+      try {
+        response = await fetchFn(`${searchBase}/${encodeURIComponent(query)}`, {
+          method: 'GET',
+          redirect: 'error',
+          headers: { authorization: `Bearer ${apiKey}`, accept: 'application/json' },
+          signal,
+        })
+      } catch (error) {
+        if (signal?.aborted) throw new WebError('Jina search aborted', 'WEB_ABORTED', { cause: error })
+        throw new WebError(`Jina search request failed: ${String(error)}`, 'WEB_PROVIDER_ERROR', { cause: error })
+      }
+      if (response.status === 401 || response.status === 403) throw new WebError('Jina rejected the configured API key.', 'WEB_PROVIDER_CREDENTIAL_INVALID')
+      if (response.status === 429) throw new WebError('Jina search was rate limited.', 'WEB_PROVIDER_RATE_LIMITED')
+      if (!response.ok) {
+        const detail = (await response.text().catch(() => '')).replace(/\s+/g, ' ').slice(0, 240)
+        throw new WebError(`Jina search failed (${response.status})${detail ? `: ${detail}` : '.'}`, 'WEB_PROVIDER_ERROR')
+      }
+      let payload
+      try { payload = await response.json() } catch (error) {
+        throw new WebError(`Jina returned malformed JSON: ${String(error)}`, 'WEB_PROVIDER_ERROR', { cause: error })
+      }
+      return mapJinaResponse(payload)
+    },
+    async fetch(request, signal) {
+      const url = String(request?.url ?? '').trim()
+      if (!/^https?:\/\//i.test(url)) {
+        throw new WebError(`Jina fetch needs an http(s) URL, got ${JSON.stringify(url)}`, 'WEB_INVALID_URL')
+      }
+      const apiKey = await apiKeyOf()
+      let response
+      try {
+        response = await fetchFn(`${readerBase}/${url}`, {
+          method: 'GET',
+          redirect: 'follow',
+          headers: {
+            accept: 'text/plain',
+            ...apiKey === '' ? {} : { authorization: `Bearer ${apiKey}` },
+          },
+          signal,
+        })
+      } catch (error) {
+        if (signal?.aborted) throw new WebError('Jina fetch aborted', 'WEB_ABORTED', { cause: error })
+        throw new WebError(`Jina fetch request failed: ${String(error)}`, 'WEB_PROVIDER_ERROR', { cause: error })
+      }
+      if (response.status === 401 || response.status === 403) throw new WebError('Jina rejected the configured API key.', 'WEB_PROVIDER_CREDENTIAL_INVALID')
+      if (response.status === 429) throw new WebError('Jina fetch was rate limited.', 'WEB_PROVIDER_RATE_LIMITED')
+      if (!response.ok) {
+        const detail = (await response.text().catch(() => '')).replace(/\s+/g, ' ').slice(0, 240)
+        throw new WebError(`Jina fetch failed (${response.status})${detail ? `: ${detail}` : '.'}`, 'WEB_PROVIDER_ERROR')
+      }
+      const content = (await response.text()).trim()
+      if (content === '') throw new WebError(`Jina returned no text for ${url}.`, 'WEB_PROVIDER_ERROR')
+      const finalUrl = String(response.url ?? '').trim() || url
+      return { url: finalUrl, statusCode: 200, body: { kind: 'text', content }, truncated: false }
+    },
+  }
+}
+
+/**
+ * Map a Jina search answer onto `WebSearchResult`.
+ * @param payload - Parsed `s.jina.ai` body.
+ * @returns Sources in provider order.
+ * @throws {@link WebError} when the body is not a search answer.
+ */
+export function mapJinaResponse(payload) {
+  if (payload === null || typeof payload !== 'object' || !Array.isArray(payload.data)) {
+    throw new WebError('Jina search returned an unexpected body', 'WEB_PROVIDER_ERROR')
+  }
+  const sources = []
+  for (const item of payload.data) {
+    if (item === null || typeof item !== 'object') continue
+    if (typeof item.url !== 'string' || item.url === '') continue
+    const snippet = String(item.description ?? item.content ?? '').replace(/\s+/g, ' ').trim()
+    sources.push({
+      url: item.url,
+      ...typeof item.title === 'string' && item.title !== '' ? { title: item.title } : {},
+      ...snippet === '' ? {} : { snippet: snippet.slice(0, 500) },
+    })
+  }
+  return { sources, truncated: false }
+}
+
 /** Build the provider a config entry names; the type decides the wire protocol. */
 export function createProvider(config, credentials, options) {
   const type = config.type ?? 'exa'
@@ -485,7 +616,9 @@ export function createProvider(config, credentials, options) {
     ? createDeepseekProvider(config, credentials, options)
     : type === 'openai'
       ? createOpenaiProvider(config, credentials, options)
-      : createExaProvider(config, credentials, options)
+      : type === 'jina'
+        ? createJinaProvider(config, credentials, options)
+        : createExaProvider(config, credentials, options)
   // The aggregators read these: a type may be able to do something the entry is
   // configured not to use, which is how one provider searches while the next
   // one, further down the list, does the page retrieval.
@@ -625,7 +758,7 @@ export const SEARCH_PROVIDER_ID = 'dsh-websearch'
  * Provider types this build can talk to. The form's select offers exactly these,
  * and `/providers` refuses anything else instead of storing a type it cannot run.
  */
-export const PROVIDER_TYPES = Object.freeze(['exa', 'deepseek', 'openai'])
+export const PROVIDER_TYPES = Object.freeze(['exa', 'deepseek', 'openai', 'jina'])
 
 /**
  * What each provider type can do. Search and page retrieval are separate
@@ -637,6 +770,8 @@ export const PROVIDER_CAPABILITIES = Object.freeze({
   exa: Object.freeze({ search: true, fetch: true }),
   deepseek: Object.freeze({ search: true, fetch: true }),
   openai: Object.freeze({ search: true, fetch: false }),
+  // Jina renders pages and searches; the reader works even without a key.
+  jina: Object.freeze({ search: true, fetch: true }),
 })
 /** The `web` seam's namespace, whose `searchProvider` field selects the active provider. */
 export const WEB_NAMESPACE = 'web'
