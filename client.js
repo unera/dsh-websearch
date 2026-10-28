@@ -58,6 +58,8 @@ var en = {
   "form.secret": "Secret",
   "form.secretNew": "API key (required)",
   "form.secretStored": "Key stored \u2014 leave blank to keep it",
+  "form.secretFetch": "page fetch key",
+  "form.secretFetchHint": "Jina issues a separate key for page retrieval",
   "form.enabled": "enabled",
   "form.needKey": "Store the API key first",
   "form.add": "Add",
@@ -106,6 +108,8 @@ var ru = {
   "form.secret": "\u0421\u0435\u043A\u0440\u0435\u0442",
   "form.secretNew": "API-\u043A\u043B\u044E\u0447 (\u043E\u0431\u044F\u0437\u0430\u0442\u0435\u043B\u044C\u043D\u043E)",
   "form.secretStored": "\u041A\u043B\u044E\u0447 \u0441\u043E\u0445\u0440\u0430\u043D\u0451\u043D \u2014 \u043E\u0441\u0442\u0430\u0432\u044C\u0442\u0435 \u043F\u0443\u0441\u0442\u044B\u043C, \u0447\u0442\u043E\u0431\u044B \u0441\u043E\u0445\u0440\u0430\u043D\u0438\u0442\u044C",
+  "form.secretFetch": "\u043A\u043B\u044E\u0447 \u0434\u043B\u044F \u0441\u043A\u0430\u0447\u0438\u0432\u0430\u043D\u0438\u044F",
+  "form.secretFetchHint": "Jina \u0432\u044B\u0434\u0430\u0451\u0442 \u043E\u0442\u0434\u0435\u043B\u044C\u043D\u044B\u0439 \u043A\u043B\u044E\u0447 \u0434\u043B\u044F \u043F\u043E\u043B\u0443\u0447\u0435\u043D\u0438\u044F \u0441\u0442\u0440\u0430\u043D\u0438\u0446",
   "form.enabled": "\u0432\u043A\u043B\u044E\u0447\u0451\u043D",
   "form.needKey": "\u0421\u043D\u0430\u0447\u0430\u043B\u0430 \u0441\u043E\u0445\u0440\u0430\u043D\u0438\u0442\u0435 API-\u043A\u043B\u044E\u0447",
   "form.add": "\u0414\u043E\u0431\u0430\u0432\u0438\u0442\u044C",
@@ -154,6 +158,8 @@ var zh = {
   "form.secret": "\u5BC6\u94A5",
   "form.secretNew": "API \u5BC6\u94A5\uFF08\u5FC5\u586B\uFF09",
   "form.secretStored": "\u5BC6\u94A5\u5DF2\u4FDD\u5B58 \u2014 \u7559\u7A7A\u5219\u4FDD\u6301\u4E0D\u53D8",
+  "form.secretFetch": "\u6293\u53D6\u5BC6\u94A5",
+  "form.secretFetchHint": "Jina \u4E3A\u9875\u9762\u6293\u53D6\u5355\u72EC\u53D1\u653E\u5BC6\u94A5",
   "form.enabled": "\u5DF2\u542F\u7528",
   "form.needKey": "\u8BF7\u5148\u4FDD\u5B58 API \u5BC6\u94A5",
   "form.add": "\u6DFB\u52A0",
@@ -276,7 +282,7 @@ async function call(path, body) {
   if (!response.ok) throw new Error(payload?.error ?? `${response.status} ${response.statusText}`);
   return payload;
 }
-var emptyDraft = { type: "", desc: "", model: "", apiKey: "", enabled: true, useSearch: true, useFetch: true };
+var emptyDraft = { type: "", desc: "", model: "", apiKey: "", fetchApiKey: "", enabled: true, useSearch: true, useFetch: true };
 var uiLanguage = (t) => {
   const title = t("nav.title");
   if (title === "\u0412\u0435\u0431-\u043F\u043E\u0438\u0441\u043A") return "ru";
@@ -333,6 +339,7 @@ function WebSearchPage(props) {
       desc: provider?.desc ?? "",
       model: provider?.model ?? "",
       apiKey: "",
+      fetchApiKey: "",
       enabled: provider?.enabled !== false,
       useSearch: provider?.capabilities?.search !== false,
       useFetch: provider?.capabilities?.fetch !== false
@@ -352,6 +359,7 @@ function WebSearchPage(props) {
       desc: draft.desc,
       model: draft.model.trim(),
       apiKey: draft.apiKey.trim(),
+      fetchApiKey: draft.fetchApiKey.trim(),
       useSearch: draft.useSearch !== false,
       useFetch: draft.useFetch !== false,
       enabled: draft.enabled === true
@@ -367,6 +375,7 @@ function WebSearchPage(props) {
     return text === key ? fallback : text;
   };
   const typeCaps = PROVIDER_CAPS[formType] ?? { search: true, fetch: true };
+  const providerFetchKeyStored = editing && providers[selected]?.fetchKeySet === true;
   const lang = uiLanguage(t);
   const when = (ms) => typeof ms === "number" && ms > 0 ? new Date(ms).toLocaleString(lang) : t("common.never");
   if (loading) {
@@ -489,6 +498,19 @@ function WebSearchPage(props) {
             }),
             ` ${label("form.allowFetch", "allow page fetch")}`
           ]
+        }),
+        formType === "jina" && (0, import_jsx_runtime.jsx)("input", {
+          className: "dws-field dws-model",
+          type: "password",
+          value: draft.fetchApiKey,
+          // Not a textarea: this one is masked, and Jina's UI shows these as secrets.
+          name: "dsh-websearch-fetch-key",
+          autoComplete: "new-password",
+          placeholder: providerFetchKeyStored ? t("form.secretStored") : t("form.secretFetch"),
+          title: t("form.secretFetchHint"),
+          spellCheck: false,
+          disabled: busy,
+          onChange: (e) => setDraft({ ...draft, fetchApiKey: e.target.value })
         }),
         formType === "openai" && (0, import_jsx_runtime.jsx)("input", {
           className: "dws-field dws-model",

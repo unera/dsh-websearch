@@ -677,3 +677,29 @@ test('Perplexity searches through the Agent API and reads the search_results ite
   assert.throws(() => mapPerplexityResponse({ status: 'completed', output: [] }), /no search_results item/)
 })
 
+
+test('Jina uses its reader key for pages and its search key for search', async () => {
+  const { createProvider } = await import('../index.mjs')
+  const seen = []
+  const provider = createProvider({
+    id: 'h-jina3', type: 'jina', apiKey: 'search-key', fetchApiKey: 'reader-key', enabled: true,
+  }, undefined, {
+    fetchFn: async (url, init) => {
+      seen.push({ url, auth: init.headers.authorization })
+      if (url.startsWith('https://s.jina.ai/')) {
+        return { ok: true, status: 200, json: async () => ({ data: [] }) }
+      }
+      return { ok: true, status: 200, text: async () => 'page' }
+    },
+  })
+  await provider.search({ query: 'q' })
+  await provider.fetch({ url: 'https://example.com' })
+  assert.equal(seen[0].auth, 'Bearer search-key')
+  assert.equal(seen[1].auth, 'Bearer reader-key')
+
+  // A missing reader key falls back to the search key, then to anonymous access.
+  const fallback = createProvider({ id: 'h-jina4', type: 'jina', apiKey: 'search-key' }, undefined, {
+    fetchFn: async (url, init) => ({ ok: true, status: 200, text: async () => String(init.headers.authorization) }),
+  })
+  assert.equal((await fallback.fetch({ url: 'https://example.com' })).body.content, 'Bearer search-key')
+})
