@@ -57,7 +57,9 @@ export function makeCredentialRef(type, id) {
 export function createExaProvider(config, credentials, { fetchFn = fetch } = {}) {
   const id = normalizeProviderId(config.id)
   const ref = credentialRef(config.credentialRef ?? makeCredentialRef('exa', id))
-  const endpoint = config.endpoints?.search ?? EXA_SEARCH_URL
+  // The schema default for `endpoints.search` is an empty string, so `??` never
+  // falls back and the request would be sent to "". Treat blank as "use the default".
+  const endpoint = String(config.endpoints?.search ?? '').trim() || EXA_SEARCH_URL
   const keyInConfig = String(config.apiKey ?? '').trim() !== ''
   const keyInEnv = String(process.env[config.credentialRef ?? ''] ?? '').trim() !== ''
   return {

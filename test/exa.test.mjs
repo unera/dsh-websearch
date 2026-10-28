@@ -247,3 +247,13 @@ test('a provider with a stored key is available without the credentials seam', a
   const viaSeam = createExaProvider({ ...config, apiKey: '' }, { resolve: async () => null })
   assert.equal(viaSeam.available(), true)
 })
+
+test('an empty endpoints.search still calls the Exa endpoint', async () => {
+  const { createExaProvider } = await import('../index.mjs')
+  const calls = []
+  const provider = createExaProvider({ ...config, apiKey: 'k-1', endpoints: { search: '' } }, undefined, {
+    fetchFn: async (url) => { calls.push(url); return { ok: true, status: 200, json: async () => ({ results: [] }) } },
+  })
+  await provider.search({ query: 'q' })
+  assert.deepEqual(calls, ['https://api.exa.ai/search'])
+})
