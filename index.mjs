@@ -209,6 +209,11 @@ export const SETTINGS_NAMESPACE = 'dsh-websearch'
 export const ROUTE_PREFIX = '/__ws'
 /** Id this plugin registers its aggregator under and the value `web.searchProvider` names. */
 export const SEARCH_PROVIDER_ID = 'dsh-websearch'
+/**
+ * Provider types this build can talk to. The form's select offers exactly these,
+ * and `/providers` refuses anything else instead of storing a type it cannot run.
+ */
+export const PROVIDER_TYPES = Object.freeze(['exa'])
 /** The `web` seam's namespace, whose `searchProvider` field selects the active provider. */
 export const WEB_NAMESPACE = 'web'
 
@@ -406,15 +411,19 @@ export function createProviderHandler(settings) {
 
       if (action === 'add') {
         const draft = body.draft ?? {}
+        const type = String(draft.type ?? 'exa')
+        if (!PROVIDER_TYPES.includes(type)) {
+          return json(response, 400, { error: `unsupported provider type ${JSON.stringify(type)}` })
+        }
         const apiKey = String(draft.apiKey ?? '').trim()
         if (apiKey === '') return json(response, 400, { error: 'an API key is required' })
         const id = generateProviderId(providers)
         providers.unshift({
           id,
-          type: 'exa',
+          type,
           desc: String(draft.desc ?? '').trim(),
           apiKey,
-          credentialRef: makeCredentialRef('exa', id),
+          credentialRef: makeCredentialRef(type, id),
           enabled: draft.enabled !== false,
         })
       } else if (action === 'save') {

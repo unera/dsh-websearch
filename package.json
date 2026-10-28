@@ -9,10 +9,21 @@
     "./client": "./client.js",
     "./package.json": "./package.json"
   },
-  "files": ["index.mjs", "client.js", "cordis.patch.yml", "README.md", "LICENSE"],
+  "files": [
+    "index.mjs",
+    "client.js",
+    "cordis.patch.yml",
+    "README.md",
+    "LICENSE"
+  ],
   "license": "MIT",
-  "engines": { "node": ">=22" },
-  "scripts": { "test": "node --test test/*.test.mjs" },
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "build": "node scripts/build-client.mjs"
+  },
   "peerDependencies": {
     "@deepseek-ai/cordis": "~4.0.5",
     "@deepseek-ai/dsh-credentials": "0.2.1-rc.4",
@@ -21,10 +32,19 @@
     "@deepseek-ai/schemastery": "~3.18.5"
   },
   "dsh": {
-    "bundle": { "patch": "./cordis.patch.yml" },
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
     "client": {
-      "inject": ["@deepseek-ai/dsh-client-locale", "@deepseek-ai/dsh-client-ui-settings", "@deepseek-ai/dsh-client-ui-slots"],
+      "inject": [
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-settings",
+        "@deepseek-ai/dsh-client-ui-slots"
+      ],
       "platform": "web"
     }
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.9"
   }
 }

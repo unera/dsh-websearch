@@ -154,6 +154,21 @@ test('adds a provider and refuses an empty key', async () => {
   assert.match(settings.state.providers[0].id, /^[A-Za-z][A-Za-z0-9_-]{5,7}$/)
 })
 
+test('the add action stores the chosen type and refuses an unknown one', async () => {
+  const { createProviderHandler } = await import('../index.mjs')
+  const settings = fakeSettings([])
+  const handler = createProviderHandler(settings)
+
+  const unknown = await callHandler(handler, { body: { action: 'add', draft: { type: 'nope', apiKey: 'k-1' } } })
+  assert.equal(unknown.status, 400)
+  assert.equal(settings.state.providers.length, 0)
+
+  const added = await callHandler(handler, { body: { action: 'add', draft: { type: 'exa', apiKey: 'k-1' } } })
+  assert.equal(added.status, 200)
+  assert.equal(settings.state.providers[0].type, 'exa')
+  assert.match(settings.state.providers[0].credentialRef, /^DSH_WEBSEARCH_EXA_/)
+})
+
 test('saving without a key keeps the stored one', async () => {
   const { createProviderHandler } = await import('../index.mjs')
   const settings = fakeSettings([{ id: 'h-ccccc', type: 'exa', desc: 'old', apiKey: 'keep-me', enabled: true }])
