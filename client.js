@@ -50,6 +50,8 @@ var en = {
   "form.chooseHint": "Choose a web search provider.",
   "form.desc": "Description",
   "form.descPlaceholder": "Description (optional)",
+  "form.useSearch": "search",
+  "form.useFetch": "fetch",
   "form.model": "Model",
   "form.modelHint": "Model name, for example gpt-5.5",
   "form.secret": "Secret",
@@ -95,6 +97,8 @@ var ru = {
   "form.chooseHint": "\u0412\u044B\u0431\u0435\u0440\u0438\u0442\u0435 \u043F\u0440\u043E\u0432\u0430\u0439\u0434\u0435\u0440\u0430 \u043F\u043E\u0438\u0441\u043A\u0430 \u0432 \u0438\u043D\u0442\u0435\u0440\u043D\u0435\u0442\u0435.",
   "form.desc": "\u041E\u043F\u0438\u0441\u0430\u043D\u0438\u0435",
   "form.descPlaceholder": "\u041E\u043F\u0438\u0441\u0430\u043D\u0438\u0435 (\u043D\u0435\u043E\u0431\u044F\u0437\u0430\u0442\u0435\u043B\u044C\u043D\u043E)",
+  "form.useSearch": "\u043F\u043E\u0438\u0441\u043A",
+  "form.useFetch": "\u0441\u043A\u0430\u0447\u0438\u0432\u0430\u043D\u0438\u0435",
   "form.model": "\u041C\u043E\u0434\u0435\u043B\u044C",
   "form.modelHint": "\u0418\u043C\u044F \u043C\u043E\u0434\u0435\u043B\u0438, \u043D\u0430\u043F\u0440\u0438\u043C\u0435\u0440 gpt-5.5",
   "form.secret": "\u0421\u0435\u043A\u0440\u0435\u0442",
@@ -140,6 +144,8 @@ var zh = {
   "form.chooseHint": "\u8BF7\u9009\u62E9\u7F51\u7EDC\u641C\u7D22\u7684\u63D0\u4F9B\u65B9\u3002",
   "form.desc": "\u63CF\u8FF0",
   "form.descPlaceholder": "\u63CF\u8FF0\uFF08\u53EF\u9009\uFF09",
+  "form.useSearch": "\u641C\u7D22",
+  "form.useFetch": "\u6293\u53D6",
   "form.model": "\u6A21\u578B",
   "form.modelHint": "\u6A21\u578B\u540D\u79F0\uFF0C\u4F8B\u5982 gpt-5.5",
   "form.secret": "\u5BC6\u94A5",
@@ -247,7 +253,7 @@ async function call(path, body) {
   if (!response.ok) throw new Error(payload?.error ?? `${response.status} ${response.statusText}`);
   return payload;
 }
-var emptyDraft = { type: "", desc: "", model: "", apiKey: "", enabled: true };
+var emptyDraft = { type: "", desc: "", model: "", apiKey: "", enabled: true, useSearch: true, useFetch: true };
 var uiLanguage = (t) => {
   const title = t("nav.title");
   if (title === "\u0412\u0435\u0431-\u043F\u043E\u0438\u0441\u043A") return "ru";
@@ -304,7 +310,9 @@ function WebSearchPage(props) {
       desc: provider?.desc ?? "",
       model: provider?.model ?? "",
       apiKey: "",
-      enabled: provider?.enabled !== false
+      enabled: provider?.enabled !== false,
+      useSearch: provider?.capabilities?.search !== false,
+      useFetch: provider?.capabilities?.fetch !== false
     });
   };
   const chooseType = (event) => {
@@ -321,6 +329,8 @@ function WebSearchPage(props) {
       desc: draft.desc,
       model: draft.model.trim(),
       apiKey: draft.apiKey.trim(),
+      useSearch: draft.useSearch !== false,
+      useFetch: draft.useFetch !== false,
       enabled: draft.enabled === true
     };
     run(() => call("/providers", editing ? { action: "save", index: selected, draft: body } : { action: "add", draft: { ...body, type: formType } })).then(reset);
@@ -423,6 +433,32 @@ function WebSearchPage(props) {
           }),
           ` ${t("form.enabled")}`
         ] }),
+        (0, import_jsx_runtime.jsxs)("label", {
+          style: styles.enabled,
+          title: t("form.useSearch"),
+          children: [
+            (0, import_jsx_runtime.jsx)("input", {
+              type: "checkbox",
+              checked: draft.useSearch !== false,
+              disabled: busy,
+              onChange: (e) => setDraft({ ...draft, useSearch: e.target.checked })
+            }),
+            ` ${t("form.useSearch")}`
+          ]
+        }),
+        (0, import_jsx_runtime.jsxs)("label", {
+          style: styles.enabled,
+          title: t("form.useFetch"),
+          children: [
+            (0, import_jsx_runtime.jsx)("input", {
+              type: "checkbox",
+              checked: draft.useFetch !== false,
+              disabled: busy,
+              onChange: (e) => setDraft({ ...draft, useFetch: e.target.checked })
+            }),
+            ` ${t("form.useFetch")}`
+          ]
+        }),
         formType === "openai" && (0, import_jsx_runtime.jsx)("input", {
           className: "dws-field dws-model",
           type: "text",

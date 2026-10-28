@@ -39,6 +39,10 @@ const ProviderConfigSchema = z.object({
   apiKey: z.string().role('secret').default(''),
   credentialRef: z.string().role('credential-ref').default('').hidden(),
   enabled: z.boolean().default(true),
+  /** Whether this entry may serve `web_search`. Separate from what the type can do. */
+  useSearch: z.boolean().default(true),
+  /** Whether this entry may serve `web_fetch`. */
+  useFetch: z.boolean().default(true),
   endpoints: z.object({ search: z.string().default('').hidden().disabled() }).default({}).hidden().disabled(),
   throttle: z.object({
     requests: z.number().step(1).min(1).default(20).hidden().disabled(),
@@ -471,9 +475,17 @@ export function createOpenaiProvider(config, credentials, { fetchFn = fetch } = 
 /** Build the provider a config entry names; the type decides the wire protocol. */
 export function createProvider(config, credentials, options) {
   const type = config.type ?? 'exa'
-  if (type === 'deepseek') return createDeepseekProvider(config, credentials, options)
-  if (type === 'openai') return createOpenaiProvider(config, credentials, options)
-  return createExaProvider(config, credentials, options)
+  const provider = type === 'deepseek'
+    ? createDeepseekProvider(config, credentials, options)
+    : type === 'openai'
+      ? createOpenaiProvider(config, credentials, options)
+      : createExaProvider(config, credentials, options)
+  // The aggregators read these: a type may be able to do something the entry is
+  // configured not to use, which is how one provider searches while the next
+  // one, further down the list, does the page retrieval.
+  provider.useSearch = config.useSearch !== false
+  provider.useFetch = config.useFetch !== false
+  return provider
 }
 
 export function createSearchAggregator(source, { deduplicate = true } = {}) {
@@ -487,7 +499,7 @@ export function createSearchAggregator(source, { deduplicate = true } = {}) {
       let firstError
       const seen = new Set()
       for (const provider of read()) {
-        if (provider.enabled === false || !provider.available()) continue
+        if (provider.enabled === false || provider.useSearch === false || !provider.available()) continue
         try {
           const result = await provider.search(request, signal)
           if (!deduplicate) return result
@@ -525,7 +537,7 @@ export function createFetchAggregator(source) {
     async fetch(request, signal) {
       let firstError
       for (const provider of read()) {
-        if (provider.enabled === false || !provider.available()) continue
+        if (provider.enabled === false || provider.useFetch === false || !provider.available()) continue
         if (typeof provider.fetch !== 'function') continue
         try {
           return await provider.fetch(request, signal)
@@ -761,7 +773,12 @@ function publicProvider(provider, index) {
     model: provider.model ?? '',
     enabled: provider.enabled !== false,
     keySet: String(provider.apiKey ?? '').trim() !== '',
-    capabilities: PROVIDER_CAPABILITIES[provider.type ?? 'exa'] ?? { search: true, fetch: true },
+    capabilities: {
+      search: (PROVIDER_CAPABILITIES[provider.type ?? 'exa'] ?? { search: true }).search !== false
+        && provider.useSearch !== false,
+      fetch: (PROVIDER_CAPABILITIES[provider.type ?? 'exa'] ?? { fetch: true }).fetch === true
+        && provider.useFetch !== false,
+    },
     stats: statsOf(provider.id),
   }
 }
@@ -860,6 +877,8 @@ export function createProviderHandler(settings) {
           apiKey,
           credentialRef: makeCredentialRef(type, id),
           enabled: draft.enabled !== false,
+          useSearch: draft.useSearch !== false,
+          useFetch: draft.useFetch !== false,
         })
       } else if (action === 'save') {
         const index = indexOf(providers, body.index)
@@ -869,6 +888,8 @@ export function createProviderHandler(settings) {
           desc: String(draft.desc ?? '').trim(),
           model: String(draft.model ?? '').trim(),
           enabled: draft.enabled !== false,
+          useSearch: draft.useSearch !== false,
+          useFetch: draft.useFetch !== false,
         }
         const apiKey = String(draft.apiKey ?? '').trim()
         // An empty key field means "keep the stored one", not "erase it".

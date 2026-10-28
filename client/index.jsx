@@ -104,7 +104,7 @@ async function call(path, body) {
   return payload
 }
 
-const emptyDraft = { type: '', desc: '', model: '', apiKey: '', enabled: true }
+const emptyDraft = { type: '', desc: '', model: '', apiKey: '', enabled: true, useSearch: true, useFetch: true }
 
 /** The language the host is showing, read off the dictionary it handed us. */
 const uiLanguage = t => {
@@ -171,6 +171,8 @@ export function WebSearchPage(props) {
       model: provider?.model ?? '',
       apiKey: '',
       enabled: provider?.enabled !== false,
+      useSearch: provider?.capabilities?.search !== false,
+      useFetch: provider?.capabilities?.fetch !== false,
     })
   }
 
@@ -190,6 +192,8 @@ export function WebSearchPage(props) {
       desc: draft.desc,
       model: draft.model.trim(),
       apiKey: draft.apiKey.trim(),
+      useSearch: draft.useSearch !== false,
+      useFetch: draft.useFetch !== false,
       enabled: draft.enabled === true,
     }
     run(() => call('/providers', editing
@@ -298,6 +302,28 @@ export function WebSearchPage(props) {
           }),
           ` ${t('form.enabled')}`,
         ] }),
+        jsxs('label', {
+          style: styles.enabled,
+          title: t('form.useSearch'),
+          children: [
+            jsx('input', {
+              type: 'checkbox', checked: draft.useSearch !== false, disabled: busy,
+              onChange: e => setDraft({ ...draft, useSearch: e.target.checked }),
+            }),
+            ` ${t('form.useSearch')}`,
+          ],
+        }),
+        jsxs('label', {
+          style: styles.enabled,
+          title: t('form.useFetch'),
+          children: [
+            jsx('input', {
+              type: 'checkbox', checked: draft.useFetch !== false, disabled: busy,
+              onChange: e => setDraft({ ...draft, useFetch: e.target.checked }),
+            }),
+            ` ${t('form.useFetch')}`,
+          ],
+        }),
         formType === 'openai' && jsx('input', {
           className: 'dws-field dws-model', type: 'text', value: draft.model,
           placeholder: t('form.modelHint'), spellCheck: false, autoComplete: 'off', disabled: busy,

@@ -527,3 +527,33 @@ test('state reports what each provider can do', async () => {
   assert.deepEqual(response.payload.providers[0].capabilities, { search: true, fetch: false })
   assert.deepEqual(response.payload.providers[1].capabilities, { search: true, fetch: true })
 })
+
+test('a provider may be denied fetch so the next one retrieves pages', async () => {
+  const { createProvider, createFetchAggregator } = await import('../index.mjs')
+  const hit = []
+  const make = (cfg) => createProvider(cfg, undefined, {
+    fetchFn: async (url) => {
+      hit.push(cfg.type)
+      return cfg.type === 'deepseek'
+        ? { ok: true, status: 200, text: async () => 'deepseek page' }
+        : { ok: true, status: 200, json: async () => ({ results: [{ url: 'https://x.example', text: 'exa page' }] }) }
+    },
+  })
+  const configs = [
+    { id: 'h-dsk20', type: 'deepseek', apiKey: 'k', enabled: true, useFetch: false },
+    { id: 'h-exa20', type: 'exa', apiKey: 'k', enabled: true },
+  ]
+  const aggregator = createFetchAggregator(() => configs.map(make))
+  const result = await aggregator.fetch({ url: 'https://x.example' })
+  assert.equal(result.statusCode, 200)
+  assert.deepEqual(hit, ['exa'])
+})
+
+test('capabilities fold the per-entry permissions in', async () => {
+  const { createProviderHandler } = await import('../index.mjs')
+  const settings = fakeSettings([
+    { id: 'h-perm1', type: 'exa', apiKey: 'k', enabled: true, useFetch: false },
+  ])
+  const response = await callHandler(createProviderHandler(settings), { method: 'GET', url: '/__ws/state' })
+  assert.deepEqual(response.payload.providers[0].capabilities, { search: true, fetch: false })
+})
