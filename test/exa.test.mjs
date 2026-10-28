@@ -738,3 +738,41 @@ test('handler refusals carry a code the page can translate', async () => {
   const badIndex = await callHandler(handler, { body: { action: 'delete', index: 7 } })
   assert.equal(badIndex.payload.code, 'index-out-of-range')
 })
+
+test('Firecrawl searches and scrapes through v2', async () => {
+  const { createProvider, mapFirecrawlResponse } = await import('../index.mjs')
+  const calls = []
+  const provider = createProvider({ id: 'h-fc001', type: 'firecrawl', apiKey: 'fc-1', enabled: true }, undefined, {
+    fetchFn: async (url, init) => {
+      calls.push({ url, init })
+      if (url.endsWith('/v2/search')) {
+        return { ok: true, status: 200, json: async () => ({ success: true, data: { web: [
+          { url: 'https://a.example', title: 'A', description: 'about   a' },
+        ] } }) }
+      }
+      return { ok: true, status: 200, json: async () => ({ success: true, data: {
+        markdown: '# Page', metadata: { url: 'https://example.com/final', sourceURL: 'https://example.com' },
+      } }) }
+    },
+  })
+  assert.equal(provider.type, 'firecrawl')
+
+  const found = await provider.search({ query: 'курс' })
+  assert.deepEqual(found.sources, [{ url: 'https://a.example', title: 'A', snippet: 'about a' }])
+  assert.equal(calls[0].url, 'https://api.firecrawl.dev/v2/search')
+  const searchBody = JSON.parse(calls[0].init.body)
+  assert.equal(searchBody.limit, 5)
+  assert.deepEqual(searchBody.scrapeOptions, { formats: ['markdown'] })
+
+  const page = await provider.fetch({ url: 'https://example.com' })
+  assert.equal(calls[1].url, 'https://api.firecrawl.dev/v2/scrape')
+  assert.equal(page.body.content, '# Page')
+  assert.equal(page.url, 'https://example.com/final')
+
+  // The older shape (data as a bare array) still maps.
+  assert.deepEqual(
+    mapFirecrawlResponse({ data: [{ url: 'https://old.example', title: 'old' }] }).sources,
+    [{ url: 'https://old.example', title: 'old' }],
+  )
+  assert.throws(() => mapFirecrawlResponse({ data: {} }), /no web results/)
+})
