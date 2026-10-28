@@ -309,6 +309,9 @@ export function createDeepseekProvider(config, credentials, { fetchFn = fetch } 
       try {
         response = await fetchFn(fetchEndpoint, {
           method: 'POST',
+          // Page retrieval must follow redirects: sites answer with 301/302 to the
+          // canonical URL, and refusing them turned an ordinary page into an error.
+          redirect: 'follow',
           headers: {
             authorization: `Bearer ${apiKey}`,
             'content-type': 'application/json',
@@ -330,7 +333,10 @@ export function createDeepseekProvider(config, credentials, { fetchFn = fetch } 
       const raw = await response.text()
       const content = deepseekFetchText(raw)
       if (!content) throw new WebError(`DeepSeek returned no usable text for ${url}.`, 'WEB_PROVIDER_ERROR')
-      return { url, statusCode: 200, body: { kind: 'text', content }, truncated: false }
+      // `response.url` is the address after redirects, so the caller learns what
+      // page the text really came from.
+      const finalUrl = String(response.url ?? '').trim() || url
+      return { url: finalUrl, statusCode: 200, body: { kind: 'text', content }, truncated: false }
     },
   }
 }

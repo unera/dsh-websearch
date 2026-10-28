@@ -570,3 +570,22 @@ test('a type that cannot fetch never stores an enabled fetch permission', async 
   await callHandler(handler, { body: { action: 'save', index: 0, draft: { model: '', enabled: true, useFetch: true } } })
   assert.equal(settings.state.providers[0].useFetch, false)
 })
+
+test('DeepSeek page retrieval follows redirects and reports the final URL', async () => {
+  const { createProvider } = await import('../index.mjs')
+  const seen = []
+  const provider = createProvider({ id: 'h-red01', type: 'deepseek', apiKey: 'k', enabled: true }, undefined, {
+    fetchFn: async (url, init) => {
+      seen.push({ url, redirect: init.redirect })
+      return {
+        ok: true, status: 200,
+        url: 'https://example.com/final',
+        text: async () => 'final page',
+      }
+    },
+  })
+  const result = await provider.fetch({ url: 'http://example.com/start' })
+  assert.equal(seen[0].redirect, 'follow')
+  assert.equal(result.url, 'https://example.com/final')
+  assert.equal(result.body.kind, 'text')
+})
