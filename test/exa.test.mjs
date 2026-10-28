@@ -718,3 +718,23 @@ test('Tavily treats a per-URL extract failure as an error, not an empty page', a
   })
   await assert.rejects(() => provider.fetch({ url: 'https://x' }), /could not extract .*blocked/)
 })
+
+test('handler refusals carry a code the page can translate', async () => {
+  const { createProviderHandler } = await import('../index.mjs')
+  const settings = fakeSettings([])
+  const handler = createProviderHandler(settings)
+
+  const unknown = await callHandler(handler, { body: { action: 'add', draft: { type: 'nope', apiKey: 'k' } } })
+  assert.equal(unknown.status, 400)
+  assert.equal(unknown.payload.code, 'unsupported-type')
+  assert.equal(unknown.payload.params.type, 'nope')
+
+  const noKey = await callHandler(handler, { body: { action: 'add', draft: { type: 'exa', apiKey: '  ' } } })
+  assert.equal(noKey.payload.code, 'key-required')
+
+  const badAction = await callHandler(handler, { body: { action: 'nonsense' } })
+  assert.equal(badAction.payload.code, 'unknown-action')
+
+  const badIndex = await callHandler(handler, { body: { action: 'delete', index: 7 } })
+  assert.equal(badIndex.payload.code, 'index-out-of-range')
+})

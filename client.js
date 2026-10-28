@@ -70,6 +70,12 @@ var en = {
   "list.down": "Move down",
   "list.delete": "Delete",
   "list.reset": "reset",
+  "error.unsupportedType": 'The host does not know the provider type "{0}" yet \u2014 restart it after installing the update',
+  "error.keyRequired": "An API key is required",
+  "error.indexOutOfRange": "That provider is no longer in the list",
+  "error.moveOutOfRange": "Nothing to move it past",
+  "error.unknownAction": 'The host does not know the action "{0}"',
+  "error.failed": "The deployment rejected the change: {0}",
   "caps.off": "off",
   "caps.searchOnly": "search only",
   "caps.searchFetch": "search and fetch",
@@ -119,6 +125,12 @@ var ru = {
   "list.down": "\u041D\u0438\u0436\u0435",
   "list.delete": "\u0423\u0434\u0430\u043B\u0438\u0442\u044C",
   "list.reset": "\u0441\u0431\u0440\u043E\u0441\u0438\u0442\u044C",
+  "error.unsupportedType": "\u0425\u043E\u0441\u0442 \u0435\u0449\u0451 \u043D\u0435 \u0437\u043D\u0430\u0435\u0442 \u0442\u0438\u043F \xAB{0}\xBB \u2014 \u043F\u0435\u0440\u0435\u0437\u0430\u043F\u0443\u0441\u0442\u0438\u0442\u0435 \u0435\u0433\u043E \u043F\u043E\u0441\u043B\u0435 \u0443\u0441\u0442\u0430\u043D\u043E\u0432\u043A\u0438 \u043E\u0431\u043D\u043E\u0432\u043B\u0435\u043D\u0438\u044F",
+  "error.keyRequired": "\u041D\u0443\u0436\u0435\u043D API-\u043A\u043B\u044E\u0447",
+  "error.indexOutOfRange": "\u042D\u0442\u043E\u0433\u043E \u043F\u0440\u043E\u0432\u0430\u0439\u0434\u0435\u0440\u0430 \u0443\u0436\u0435 \u043D\u0435\u0442 \u0432 \u0441\u043F\u0438\u0441\u043A\u0435",
+  "error.moveOutOfRange": "\u0414\u0430\u043B\u044C\u0448\u0435 \u0434\u0432\u0438\u0433\u0430\u0442\u044C \u043D\u0435\u043A\u0443\u0434\u0430",
+  "error.unknownAction": "\u0425\u043E\u0441\u0442 \u043D\u0435 \u0437\u043D\u0430\u0435\u0442 \u0434\u0435\u0439\u0441\u0442\u0432\u0438\u0435 \xAB{0}\xBB",
+  "error.failed": "\u0420\u0430\u0437\u0432\u0451\u0440\u0442\u044B\u0432\u0430\u043D\u0438\u0435 \u043E\u0442\u043A\u043B\u043E\u043D\u0438\u043B\u043E \u0438\u0437\u043C\u0435\u043D\u0435\u043D\u0438\u0435: {0}",
   "caps.off": "\u043E\u0442\u043A\u043B\u044E\u0447\u0435\u043D\u043E",
   "caps.searchOnly": "\u0442\u043E\u043B\u044C\u043A\u043E \u043F\u043E\u0438\u0441\u043A",
   "caps.searchFetch": "\u043F\u043E\u0438\u0441\u043A \u0438 \u0441\u043A\u0430\u0447\u0438\u0432\u0430\u043D\u0438\u0435",
@@ -168,6 +180,12 @@ var zh = {
   "list.down": "\u4E0B\u79FB",
   "list.delete": "\u5220\u9664",
   "list.reset": "\u91CD\u7F6E",
+  "error.unsupportedType": "\u5BBF\u4E3B\u5C1A\u4E0D\u8BA4\u8BC6\u63D0\u4F9B\u65B9\u7C7B\u578B\u201C{0}\u201D\u2014\u2014\u5B89\u88C5\u66F4\u65B0\u540E\u8BF7\u91CD\u542F",
+  "error.keyRequired": "\u9700\u8981 API \u5BC6\u94A5",
+  "error.indexOutOfRange": "\u8BE5\u63D0\u4F9B\u65B9\u5DF2\u4E0D\u5728\u5217\u8868\u4E2D",
+  "error.moveOutOfRange": "\u65E0\u6CD5\u7EE7\u7EED\u79FB\u52A8",
+  "error.unknownAction": "\u5BBF\u4E3B\u4E0D\u8BA4\u8BC6\u64CD\u4F5C\u201C{0}\u201D",
+  "error.failed": "\u90E8\u7F72\u62D2\u7EDD\u4E86\u8BE5\u66F4\u6539\uFF1A{0}",
   "caps.off": "\u5DF2\u5173\u95ED",
   "caps.searchOnly": "\u4EC5\u641C\u7D22",
   "caps.searchFetch": "\u641C\u7D22\u4E0E\u6293\u53D6",
@@ -280,7 +298,12 @@ async function call(path, body) {
   const response = await fetch(`${API}${path}`, body === void 0 ? { cache: "no-store" } : { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
   const text = await response.text();
   const payload = text === "" ? null : JSON.parse(text);
-  if (!response.ok) throw new Error(payload?.error ?? `${response.status} ${response.statusText}`);
+  if (!response.ok) {
+    const failure = new Error(payload?.error ?? `${response.status} ${response.statusText}`);
+    failure.code = payload?.code;
+    failure.params = payload?.params;
+    throw failure;
+  }
   return payload;
 }
 var emptyDraft = { type: "", desc: "", model: "", apiKey: "", enabled: true, useSearch: true, useFetch: true };
@@ -296,7 +319,7 @@ function WebSearchPage(props) {
   const [selected, setSelected] = (0, import_react.useState)(null);
   const [draft, setDraft] = (0, import_react.useState)(emptyDraft);
   const [busy, setBusy] = (0, import_react.useState)(false);
-  const [error, setError] = (0, import_react.useState)("");
+  const [error, setError] = (0, import_react.useState)(null);
   const [loading, setLoading] = (0, import_react.useState)(true);
   const [active, setActive] = (0, import_react.useState)("");
   const [registered, setRegistered] = (0, import_react.useState)(null);
@@ -307,18 +330,18 @@ function WebSearchPage(props) {
   };
   const run = async (work) => {
     setBusy(true);
-    setError("");
+    setError(null);
     try {
       await work();
       apply2(await call("/state"));
     } catch (e) {
-      setError(String(e?.message ?? e));
+      setError({ text: String(e?.message ?? e), code: e?.code, params: e?.params });
     } finally {
       setBusy(false);
     }
   };
   (0, import_react.useEffect)(() => {
-    call("/state").then(apply2).catch((e) => setError(String(e?.message ?? e))).finally(() => setLoading(false));
+    call("/state").then(apply2).catch((e) => setError({ text: String(e?.message ?? e), code: e?.code, params: e?.params })).finally(() => setLoading(false));
   }, []);
   const editing = selected !== null && providers[selected] !== void 0;
   const formType = editing ? providers[selected].type ?? "exa" : draft.type;
@@ -374,6 +397,20 @@ function WebSearchPage(props) {
     return text === key ? fallback : text;
   };
   const typeCaps = PROVIDER_CAPS[formType] ?? { search: true, fetch: true };
+  const errorText = (failure) => {
+    const withParam = (key, value) => {
+      const template = t(key);
+      return template === key ? void 0 : template.replace("{0}", String(value ?? ""));
+    };
+    let text;
+    if (failure.code === "unsupported-type") text = withParam("error.unsupportedType", failure.params?.type);
+    else if (failure.code === "key-required") text = withParam("error.keyRequired");
+    else if (failure.code === "index-out-of-range") text = withParam("error.indexOutOfRange");
+    else if (failure.code === "move-out-of-range") text = withParam("error.moveOutOfRange");
+    else if (failure.code === "unknown-action") text = withParam("error.unknownAction", failure.params?.action);
+    if (text !== void 0) return text;
+    return withParam("error.failed", failure.text) ?? failure.text;
+  };
   const lang = uiLanguage(t);
   const when = (ms) => typeof ms === "number" && ms > 0 ? new Date(ms).toLocaleString(lang) : t("common.never");
   if (loading) {
@@ -524,7 +561,7 @@ function WebSearchPage(props) {
     ] }),
     // Right under the form: an error belongs to the action just taken, and on a
     // full page the message at the bottom was easy to miss.
-    error !== "" && (0, import_jsx_runtime.jsx)("p", { style: styles.error, children: error }),
+    error !== null && (0, import_jsx_runtime.jsx)("p", { style: styles.error, children: errorText(error) }),
     providers.length > 0 && (0, import_jsx_runtime.jsx)("ul", { style: styles.list, children: providers.map((provider, index) => {
       const on = provider.enabled === true;
       const icon = iconOf(provider.type);

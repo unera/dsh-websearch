@@ -134,7 +134,13 @@ async function call(path, body) {
     : { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
   const text = await response.text()
   const payload = text === '' ? null : JSON.parse(text)
-  if (!response.ok) throw new Error(payload?.error ?? `${response.status} ${response.statusText}`)
+  if (!response.ok) {
+    const failure = new Error(payload?.error ?? `${response.status} ${response.statusText}`)
+    // Server messages are English by nature; the code lets the page translate.
+    failure.code = payload?.code
+    failure.params = payload?.params
+    throw failure
+  }
   return payload
 }
 
@@ -154,7 +160,7 @@ export function WebSearchPage(props) {
   const [selected, setSelected] = useState(null)
   const [draft, setDraft] = useState(emptyDraft)
   const [busy, setBusy] = useState(false)
-  const [error, setError] = useState('')
+  const [error, setError] = useState(null)
   const [loading, setLoading] = useState(true)
   const [active, setActive] = useState('')
   const [registered, setRegistered] = useState(null)
@@ -166,19 +172,22 @@ export function WebSearchPage(props) {
   }
 
   const run = async (work) => {
-    setBusy(true); setError('')
+    setBusy(true); setError(null)
     try {
       await work()
       apply(await call('/state'))
     } catch (e) {
-      setError(String(e?.message ?? e))
+      setError({ text: String(e?.message ?? e), code: e?.code, params: e?.params })
     } finally {
       setBusy(false)
     }
   }
 
   useEffect(() => {
-    call('/state').then(apply).catch(e => setError(String(e?.message ?? e))).finally(() => setLoading(false))
+    call('/state')
+      .then(apply)
+      .catch(e => setError({ text: String(e?.message ?? e), code: e?.code, params: e?.params }))
+      .finally(() => setLoading(false))
   }, [])
 
   const editing = selected !== null && providers[selected] !== undefined
@@ -249,6 +258,27 @@ export function WebSearchPage(props) {
   }
 
   const typeCaps = PROVIDER_CAPS[formType] ?? { search: true, fetch: true }
+
+  /**
+   * The message for a failed action: a dictionary entry when the host sent a code
+   * this build knows, and the host's own text otherwise.
+   * @param failure - recorded text plus the optional code and its parameters.
+   * @returns The text to show.
+   */
+  const errorText = failure => {
+    const withParam = (key, value) => {
+      const template = t(key)
+      return template === key ? undefined : template.replace('{0}', String(value ?? ''))
+    }
+    let text
+    if (failure.code === 'unsupported-type') text = withParam('error.unsupportedType', failure.params?.type)
+    else if (failure.code === 'key-required') text = withParam('error.keyRequired')
+    else if (failure.code === 'index-out-of-range') text = withParam('error.indexOutOfRange')
+    else if (failure.code === 'move-out-of-range') text = withParam('error.moveOutOfRange')
+    else if (failure.code === 'unknown-action') text = withParam('error.unknownAction', failure.params?.action)
+    if (text !== undefined) return text
+    return withParam('error.failed', failure.text) ?? failure.text
+  }
 
   const lang = uiLanguage(t)
   const when = ms => (typeof ms === 'number' && ms > 0 ? new Date(ms).toLocaleString(lang) : t('common.never'))
@@ -390,7 +420,7 @@ export function WebSearchPage(props) {
 
     // Right under the form: an error belongs to the action just taken, and on a
     // full page the message at the bottom was easy to miss.
-    error !== '' && jsx('p', { style: styles.error, children: error }),
+    error !== null && jsx('p', { style: styles.error, children: errorText(error) }),
 
     providers.length > 0 && jsx('ul', { style: styles.list, children: providers.map((provider, index) => {
       const on = provider.enabled === true

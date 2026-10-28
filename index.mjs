@@ -1237,7 +1237,7 @@ export function createProviderHandler(settings) {
   const indexOf = (providers, raw) => {
     const index = Number(raw)
     if (!Number.isInteger(index) || index < 0 || index >= providers.length) {
-      throw new Error(`provider index ${JSON.stringify(raw)} is out of range`)
+      throw Object.assign(new Error(`provider index ${JSON.stringify(raw)} is out of range`), { code: 'index-out-of-range' })
     }
     return index
   }
@@ -1268,13 +1268,13 @@ export function createProviderHandler(settings) {
         const draft = body.draft ?? {}
         const type = String(draft.type ?? 'exa')
         if (!PROVIDER_TYPES.includes(type)) {
-          return json(response, 400, { error: `unsupported provider type ${JSON.stringify(type)}` })
+          return json(response, 400, { error: `unsupported provider type ${JSON.stringify(type)}`, code: 'unsupported-type', params: { type } })
         }
         const caps = PROVIDER_CAPABILITIES[type]
         const typeSearch = caps.search !== false
         const typeFetch = caps.fetch === true
         const apiKey = String(draft.apiKey ?? '').trim()
-        if (apiKey === '') return json(response, 400, { error: 'an API key is required' })
+        if (apiKey === '') return json(response, 400, { error: 'an API key is required', code: 'key-required' })
         const id = generateProviderId(providers)
         providers.unshift({
           id,
@@ -1312,7 +1312,7 @@ export function createProviderHandler(settings) {
       } else if (action === 'move') {
         const index = indexOf(providers, body.index)
         const target = index + Number(body.delta ?? 0)
-        if (target < 0 || target >= providers.length) return json(response, 400, { error: 'move is out of range' })
+        if (target < 0 || target >= providers.length) return json(response, 400, { error: 'move is out of range', code: 'move-out-of-range' })
         ;[providers[index], providers[target]] = [providers[target], providers[index]]
       } else if (action === 'reset') {
         resetStats(providers[indexOf(providers, body.index)]?.id ?? '')
@@ -1327,7 +1327,7 @@ export function createProviderHandler(settings) {
         const index = indexOf(providers, body.index)
         providers[index] = { ...providers[index], enabled: providers[index].enabled === false }
       } else {
-        return json(response, 400, { error: `unknown action ${JSON.stringify(action)}` })
+        return json(response, 400, { error: `unknown action ${JSON.stringify(action)}`, code: 'unknown-action', params: { action } })
       }
 
       if (action !== 'select') await write(providers)
@@ -1338,7 +1338,11 @@ export function createProviderHandler(settings) {
         providerId: SEARCH_PROVIDER_ID,
       })
     } catch (error) {
-      return json(response, 400, { error: String(error?.message ?? error) })
+      // `code` lets the page show a translated message instead of server English.
+      return json(response, 400, {
+        error: String(error?.message ?? error),
+        ...error?.code === undefined ? {} : { code: String(error.code) },
+      })
     }
   }
 }
