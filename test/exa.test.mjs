@@ -323,3 +323,60 @@ test('createProvider picks the protocol by type', async () => {
   assert.equal(createProvider({ ...config }, undefined).type, 'exa')
   assert.equal(createProvider({ ...config, id: 'h-dsk02', type: 'deepseek' }, undefined).type, 'deepseek')
 })
+
+test('Exa fetch retrieves page text through /contents', async () => {
+  const { createExaProvider } = await import('../index.mjs')
+  const calls = []
+  const provider = createExaProvider({ ...config, apiKey: 'k-1' }, undefined, {
+    fetchFn: async (url, options) => {
+      calls.push({ url, body: JSON.parse(options.body) })
+      return {
+        ok: true,
+        status: 200,
+        async json() {
+          return { results: [{ url: 'https://example.com', title: 'Example', text: 'Hello page' }] }
+        },
+      }
+    },
+  })
+  const result = await provider.fetch({ url: 'https://example.com' })
+  assert.equal(calls[0].url, 'https://api.exa.ai/contents')
+  assert.deepEqual(calls[0].body, { urls: ['https://example.com'], text: true })
+  assert.equal(result.statusCode, 200)
+  assert.deepEqual(result.body, { kind: 'text', content: 'Hello page' })
+  assert.equal(result.url, 'https://example.com')
+})
+
+test('Exa fetch rejects a non-http URL and an empty page', async () => {
+  const { createExaProvider } = await import('../index.mjs')
+  const provider = createExaProvider({ ...config, apiKey: 'k-1' }, undefined, {
+    fetchFn: async () => ({ ok: true, status: 200, async json() { return { results: [] } } }),
+  })
+  await assert.rejects(provider.fetch({ url: 'file:///etc/passwd' }), error => error.code === 'WEB_INVALID_URL')
+  await assert.rejects(provider.fetch({ url: 'https://example.com' }), error => error.code === 'WEB_PROVIDER_ERROR')
+})
+
+test('the fetch aggregator falls over to the next usable provider', async () => {
+  const { createFetchAggregator } = await import('../index.mjs')
+  const failing = {
+    id: 'a', enabled: true, available: () => true,
+    async fetch() { throw Object.assign(new Error('no key'), { code: 'WEB_PROVIDER_CREDENTIAL_MISSING' }) },
+  }
+  const working = {
+    id: 'b', enabled: true, available: () => true,
+    async fetch() { return { url: 'https://example.com', statusCode: 200, body: { kind: 'text', content: 'ok' }, truncated: false } },
+  }
+  const aggregator = createFetchAggregator([failing, working])
+  const result = await aggregator.fetch({ url: 'https://example.com' })
+  assert.equal(result.body.content, 'ok')
+  assert.equal(createFetchAggregator([failing]).available(), true)
+})
+
+test('DeepSeek fetch text picks a known field or accepts plain text', async () => {
+  const { deepseekFetchText } = await import('../index.mjs')
+  assert.equal(deepseekFetchText('{"content":"page"}'), 'page')
+  assert.equal(deepseekFetchText('{"data":{"markdown":"# Title"}}'), '# Title')
+  assert.equal(deepseekFetchText('just text'), 'just text')
+  assert.equal(deepseekFetchText('{"results":[]}'), undefined)
+  assert.equal(deepseekFetchText('   '), undefined)
+})

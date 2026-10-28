@@ -10,6 +10,10 @@ export const name = 'dsh-websearch'
 export const inject = ['web', 'settings']
 
 export const EXA_SEARCH_URL = 'https://api.exa.ai/search'
+/** Exa's page retrieval: the fetch half of the same API key. */
+export const EXA_CONTENTS_URL = 'https://api.exa.ai/contents'
+/** DeepSeek's own page retrieval, alongside its `tools/search`. */
+export const DEEPSEEK_FETCH_URL = 'https://api.deepseek.com/v1/tools/fetch'
 
 /** Anthropic-compatible Messages endpoint DeepSeek serves native web search on. */
 export const DEEPSEEK_BASE_URL = 'https://api.deepseek.com/anthropic/v1'
@@ -68,6 +72,7 @@ export function createExaProvider(config, credentials, { fetchFn = fetch } = {})
   // The schema default for `endpoints.search` is an empty string, so `??` never
   // falls back and the request would be sent to "". Treat blank as "use the default".
   const endpoint = String(config.endpoints?.search ?? '').trim() || EXA_SEARCH_URL
+  const contentsEndpoint = String(config.endpoints?.contents ?? '').trim() || EXA_CONTENTS_URL
   const keyInConfig = String(config.apiKey ?? '').trim() !== ''
   const keyInEnv = String(process.env[config.credentialRef ?? ''] ?? '').trim() !== ''
   return {
@@ -118,6 +123,57 @@ export function createExaProvider(config, credentials, { fetchFn = fetch } = {})
       try { data = await response.json() } catch (error) { throw new WebError(`Exa returned malformed JSON: ${String(error)}`, 'WEB_PROVIDER_ERROR', { cause: error }) }
       const sources = normalizeSources(data?.results)
       return { sources, truncated: request.maxResults !== undefined && sources.length > request.maxResults }
+    },
+    /**
+     * Page retrieval through Exa's `/contents`, the fetch half of the same key.
+     * Exa answers with the extracted text, not with the target's own status, so a
+     * success is HTTP 200 and a page without usable text is an error.
+     */
+    async fetch(request, signal) {
+      const url = String(request?.url ?? '').trim()
+      if (!/^https?:\/\//i.test(url)) {
+        throw new WebError(`Exa fetch needs an http(s) URL, got ${JSON.stringify(url)}`, 'WEB_INVALID_URL')
+      }
+      const resolved = await credentials?.resolve(ref)
+      const apiKey = config.apiKey?.trim()
+        || resolved?.value?.trim()
+        || process.env[config.credentialRef ?? '']?.trim()
+      if (!apiKey) {
+        throw new WebError(`Exa fetch has no API key for "${config.credentialRef ?? makeCredentialRef('exa', id)}"`, 'WEB_PROVIDER_CREDENTIAL_MISSING')
+      }
+      let response
+      try {
+        response = await fetchFn(contentsEndpoint, {
+          method: 'POST',
+          headers: { accept: 'application/json', 'content-type': 'application/json', 'x-api-key': apiKey },
+          body: JSON.stringify({ urls: [url], text: true }),
+          signal,
+        })
+      } catch (error) {
+        if (signal?.aborted) throw new WebError('Exa fetch aborted', 'WEB_ABORTED', { cause: error })
+        throw new WebError(`Exa fetch request failed: ${String(error)}`, 'WEB_PROVIDER_ERROR', { cause: error })
+      }
+      if (response.status === 401 || response.status === 403) throw new WebError('Exa rejected the configured API key.', 'WEB_PROVIDER_CREDENTIAL_INVALID')
+      if (response.status === 429) throw new WebError('Exa fetch was rate limited.', 'WEB_PROVIDER_RATE_LIMITED')
+      if (!response.ok) {
+        const detail = (await response.text().catch(() => '')).replace(/\s+/g, ' ').slice(0, 240)
+        throw new WebError(`Exa fetch failed (${response.status})${detail ? `: ${detail}` : '.'}`, 'WEB_PROVIDER_ERROR')
+      }
+      let data
+      try { data = await response.json() } catch (error) {
+        throw new WebError(`Exa returned malformed JSON: ${String(error)}`, 'WEB_PROVIDER_ERROR', { cause: error })
+      }
+      const item = Array.isArray(data?.results) ? data.results[0] : null
+      const content = text(item?.text) ?? text(item?.summary)
+      if (!content) {
+        throw new WebError(`Exa returned no usable text for ${url}.`, 'WEB_PROVIDER_ERROR')
+      }
+      return {
+        url: text(item?.url) ?? url,
+        statusCode: 200,
+        body: { kind: 'text', content },
+        truncated: false,
+      }
     },
   }
 }
@@ -239,7 +295,74 @@ export function createDeepseekProvider(config, credentials, { fetchFn = fetch } 
       }
       return mapDeepseekResponse(payload)
     },
+    /**
+     * Page retrieval through DeepSeek's own `tools/fetch`.
+     *
+     * The endpoint's exact payload is not pinned down in this build (no API key was
+     * available to probe it), so the body is read tolerantly: the first usable text
+     * field wins, and a plain-text answer is accepted as is. That keeps a future
+     * format change from breaking fetch outright.
+     */
+    async fetch(request, signal) {
+      const url = String(request?.url ?? '').trim()
+      if (!/^https?:\/\//i.test(url)) {
+        throw new WebError(`DeepSeek fetch needs an http(s) URL, got ${JSON.stringify(url)}`, 'WEB_INVALID_URL')
+      }
+      const resolved = await credentials?.resolve(ref)
+      const apiKey = String(config.apiKey ?? '').trim()
+        || String(resolved?.value ?? '').trim()
+        || String(process.env[ref] ?? '').trim()
+      if (!apiKey) {
+        throw new WebError(`DeepSeek fetch has no API key for "${ref}"`, 'WEB_PROVIDER_CREDENTIAL_MISSING')
+      }
+      const fetchEndpoint = String(config.endpoints?.fetch ?? '').trim() || DEEPSEEK_FETCH_URL
+      let response
+      try {
+        response = await fetchFn(fetchEndpoint, {
+          method: 'POST',
+          headers: {
+            'x-api-key': apiKey,
+            authorization: `Bearer ${apiKey}`,
+            'content-type': 'application/json',
+            accept: 'application/json',
+          },
+          body: JSON.stringify({ url }),
+          signal,
+        })
+      } catch (error) {
+        if (signal?.aborted) throw new WebError('DeepSeek fetch aborted', 'WEB_ABORTED', { cause: error })
+        throw new WebError(`DeepSeek fetch request failed: ${String(error)}`, 'WEB_PROVIDER_ERROR', { cause: error })
+      }
+      if (response.status === 401 || response.status === 403) throw new WebError('DeepSeek rejected the configured API key.', 'WEB_PROVIDER_CREDENTIAL_INVALID')
+      if (response.status === 429) throw new WebError('DeepSeek fetch was rate limited.', 'WEB_PROVIDER_RATE_LIMITED')
+      if (!response.ok) {
+        const detail = (await response.text().catch(() => '')).replace(/\s+/g, ' ').slice(0, 240)
+        throw new WebError(`DeepSeek fetch failed (${response.status})${detail ? `: ${detail}` : '.'}`, 'WEB_PROVIDER_ERROR')
+      }
+      const raw = await response.text()
+      const content = deepseekFetchText(raw)
+      if (!content) throw new WebError(`DeepSeek returned no usable text for ${url}.`, 'WEB_PROVIDER_ERROR')
+      return { url, statusCode: 200, body: { kind: 'text', content }, truncated: false }
+    },
   }
+}
+
+/**
+ * The text of a `tools/fetch` answer, whatever field this build happens to get.
+ *
+ * JSON answers are looked through the known names first; anything else is the page
+ * itself. An empty result is `undefined`, never an empty string, so a caller can
+ * tell "no content" from "empty page".
+ */
+export function deepseekFetchText(raw) {
+  const body = typeof raw === 'string' ? raw.trim() : ''
+  if (body === '') return undefined
+  let payload
+  try { payload = JSON.parse(body) } catch { return body }
+  const candidate = payload?.content ?? payload?.markdown ?? payload?.text ?? payload?.html
+    ?? payload?.data?.content ?? payload?.data?.markdown ?? payload?.result?.content
+  const found = typeof candidate === 'string' ? candidate.trim() : ''
+  return found === '' ? undefined : found
 }
 
 /** Build the provider a config entry names; the type decides the wire protocol. */
@@ -280,8 +403,37 @@ export function createSearchAggregator(providers, { deduplicate = true } = {}) {
   }
 }
 
-export function describeProviders(configs) {
-  return configs.map(config => ({
+/**
+ * Fetch through the same provider list the search aggregator uses: the first
+ * enabled provider that can retrieve the URL wins, and a provider that is simply
+ * unusable hands over to the next one instead of failing the whole call.
+ *
+ * @param providers - provider objects, each carrying its own `fetch`.
+ */
+export function createFetchAggregator(providers) {
+  const list = [...providers]
+  return {
+    id: 'dsh-websearch',
+    available: () => list.some(provider => provider.enabled !== false && provider.available()),
+    async fetch(request, signal) {
+      let firstError
+      for (const provider of list) {
+        if (provider.enabled === false || !provider.available()) continue
+        if (typeof provider.fetch !== 'function') continue
+        try {
+          return await provider.fetch(request, signal)
+        } catch (error) {
+          if (firstError === undefined) firstError = error
+          if (!isFallbackError(error)) throw error
+        }
+      }
+      if (firstError !== undefined) throw firstError
+      throw new WebError('No enabled web fetch provider is available.', 'WEB_PROVIDER_UNAVAILABLE')
+    },
+  }
+}
+
+export function describeProviders(configs) {  return configs.map(config => ({
     id: config.id,
     type: config.type,
     desc: config.desc ?? '',
@@ -580,8 +732,12 @@ export function createProviderHandler(settings) {
       } else if (action === 'reset') {
         resetStats(providers[indexOf(providers, body.index)]?.id ?? '')
       } else if (action === 'select') {
-        // The `web` seam never adopts a provider on its own; the page points it here.
-        await settings.update(WEB_NAMESPACE, { searchProvider: SEARCH_PROVIDER_ID })
+        // The `web` seam never adopts a provider on its own; the page points it here
+        // for both capabilities, because one key covers search and fetch alike.
+        await settings.update(WEB_NAMESPACE, {
+          searchProvider: SEARCH_PROVIDER_ID,
+          fetchProvider: SEARCH_PROVIDER_ID,
+        })
       } else if (action === 'toggle') {
         const index = indexOf(providers, body.index)
         providers[index] = { ...providers[index], enabled: providers[index].enabled === false }
@@ -613,8 +769,8 @@ export function apply(ctx, config = {}) {
       return {
         ...provider,
         id,
-        type: 'exa',
-        credentialRef: provider.credentialRef || makeCredentialRef('exa', id),
+        type: provider.type ?? 'exa',
+        credentialRef: provider.credentialRef || makeCredentialRef(provider.type ?? 'exa', id),
       }
     })
   ctx.inject(['settings', 'webServer'], scoped => {
@@ -638,9 +794,12 @@ export function apply(ctx, config = {}) {
       return undefined
     }
     const dispose = scoped.web.registerSearchProvider(createSearchAggregator(providers))
+    // Every provider that can search also retrieves pages; the same list serves both
+    // capabilities, so one configured key covers `web_search` and `web_fetch`.
+    const disposeFetch = scoped.web.registerFetchProvider(createFetchAggregator(providers))
     runtimeState.registered = true
     runtimeState.reason = ''
-    return () => { runtimeState.registered = false; dispose?.() }
+    return () => { runtimeState.registered = false; dispose?.(); disposeFetch?.() }
   })
 }
 
