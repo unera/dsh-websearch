@@ -1395,6 +1395,10 @@ export const PROVIDER_CAPABILITIES = Object.freeze({
   brave: Object.freeze({ search: true, fetch: false }),
   serper: Object.freeze({ search: true, fetch: false }),
 })
+/** Built-in DSH search provider unregister hands control back to. */
+export const BUILTIN_SEARCH_PROVIDER = 'web-search-deepseek'
+/** Built-in DSH page-retrieval provider: anonymous HTTP, no key needed. */
+export const BUILTIN_FETCH_PROVIDER = 'web-fetch-http'
 /** The `web` seam's namespace, whose `searchProvider` field selects the active provider. */
 export const WEB_NAMESPACE = 'web'
 
@@ -1820,8 +1824,13 @@ export function createProviderHandler(settings, credentials = null) {
       } else if (action === 'reset') {
         resetStats(providers[indexOf(providers, body.index)]?.id ?? '')
       } else if (action === 'unregister') {
-        // Hands both capabilities back to whoever DSH picks when no provider is named.
-        await settings.update(WEB_NAMESPACE, { searchProvider: '', fetchProvider: '' })
+        // Hands both capabilities back to DSH's own providers rather than to an empty
+        // id: an empty value fails selection instead of falling back, which would take
+        // web search down completely — the opposite of a safety switch.
+        await settings.update(WEB_NAMESPACE, {
+          searchProvider: BUILTIN_SEARCH_PROVIDER,
+          fetchProvider: BUILTIN_FETCH_PROVIDER,
+        })
       } else if (action === 'select') {
         // The `web` seam never adopts a provider on its own; the page points it here
         // for both capabilities, because one key covers search and fetch alike.
