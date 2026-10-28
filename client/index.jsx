@@ -508,12 +508,6 @@ function WebSearchPageInner(props) {
                 children: active === '' ? t('page.activeNone') : active,
               }),
             ] }),
-            active === 'dsh-websearch' && registered !== null && jsx('span', {
-              style: registered.registered ? styles.green : styles.red,
-              children: registered.registered
-                ? t('page.registered')
-                : `${t('page.notRegistered')}${registered.reason || registered.step || t('page.unknown')}`,
-            }),
             // Only one of the two can apply at a time, so only that one is drawn.
             active === 'dsh-websearch'
               ? jsx('button', {

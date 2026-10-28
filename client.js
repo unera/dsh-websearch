@@ -41,12 +41,9 @@ var en = {
   "help.restart": "Restart DeepSeek Harness for this to take effect.",
   "page.register": "Register",
   "page.unregister": "Unregister",
-  "page.activeOther": "Active search provider: ",
+  "page.activeOther": "Current provider: ",
   "page.activeNone": "none",
   "page.useForSearch": "Use for search and page fetch",
-  "page.registered": "registered",
-  "page.notRegistered": "not registered: ",
-  "page.unknown": "unknown",
   "form.type": "Provider",
   "form.typeNone": "none",
   "form.typeLocked": "The provider type cannot be changed \u2014 add a new entry instead",
@@ -108,12 +105,9 @@ var ru = {
   "help.restart": "\u0427\u0442\u043E\u0431\u044B \u044D\u0442\u043E \u043F\u0440\u0438\u043C\u0435\u043D\u0438\u043B\u043E\u0441\u044C, \u043F\u0435\u0440\u0435\u0437\u0430\u043F\u0443\u0441\u0442\u0438\u0442\u0435 DeepSeek Harness.",
   "page.register": "\u0417\u0430\u0440\u0435\u0433\u0438\u0441\u0442\u0440\u0438\u0440\u043E\u0432\u0430\u0442\u044C",
   "page.unregister": "\u041E\u0442\u043E\u0437\u0432\u0430\u0442\u044C \u0440\u0435\u0433\u0438\u0441\u0442\u0440\u0430\u0446\u0438\u044E",
-  "page.activeOther": "\u0410\u043A\u0442\u0438\u0432\u043D\u044B\u0439 \u043F\u0440\u043E\u0432\u0430\u0439\u0434\u0435\u0440 \u043F\u043E\u0438\u0441\u043A\u0430: ",
+  "page.activeOther": "\u0422\u0435\u043A\u0443\u0449\u0438\u0439 \u043F\u0440\u043E\u0432\u0430\u0439\u0434\u0435\u0440: ",
   "page.activeNone": "\u043D\u0435\u0442",
   "page.useForSearch": "\u0418\u0441\u043F\u043E\u043B\u044C\u0437\u043E\u0432\u0430\u0442\u044C \u0434\u043B\u044F \u043F\u043E\u0438\u0441\u043A\u0430 \u0438 \u0437\u0430\u0433\u0440\u0443\u0437\u043A\u0438 \u0441\u0442\u0440\u0430\u043D\u0438\u0446",
-  "page.registered": "\u0437\u0430\u0440\u0435\u0433\u0438\u0441\u0442\u0440\u0438\u0440\u043E\u0432\u0430\u043D",
-  "page.notRegistered": "\u043D\u0435 \u0437\u0430\u0440\u0435\u0433\u0438\u0441\u0442\u0440\u0438\u0440\u043E\u0432\u0430\u043D: ",
-  "page.unknown": "\u043D\u0435\u0438\u0437\u0432\u0435\u0441\u0442\u043D\u043E",
   "form.type": "\u041F\u0440\u043E\u0432\u0430\u0439\u0434\u0435\u0440",
   "form.typeNone": "\u043D\u0435\u0442",
   "form.typeLocked": "\u0422\u0438\u043F \u043F\u0440\u043E\u0432\u0430\u0439\u0434\u0435\u0440\u0430 \u043D\u0435\u043B\u044C\u0437\u044F \u0438\u0437\u043C\u0435\u043D\u0438\u0442\u044C \u2014 \u0434\u043E\u0431\u0430\u0432\u044C\u0442\u0435 \u043D\u043E\u0432\u0443\u044E \u0437\u0430\u043F\u0438\u0441\u044C",
@@ -178,9 +172,6 @@ var zh = {
   "page.activeOther": "\u5F53\u524D\u751F\u6548\u7684\u641C\u7D22\u63D0\u4F9B\u65B9\uFF1A",
   "page.activeNone": "\u65E0",
   "page.useForSearch": "\u7528\u4E8E\u641C\u7D22\u548C\u6293\u53D6\u7F51\u9875",
-  "page.registered": "\u5DF2\u6CE8\u518C",
-  "page.notRegistered": "\u672A\u6CE8\u518C\uFF1A",
-  "page.unknown": "\u672A\u77E5",
   "form.type": "\u63D0\u4F9B\u65B9",
   "form.typeNone": "\u65E0",
   "form.typeLocked": "\u63D0\u4F9B\u65B9\u7C7B\u578B\u4E0D\u53EF\u4FEE\u6539 \u2014 \u8BF7\u65B0\u589E\u4E00\u6761\u8BB0\u5F55",
@@ -627,10 +618,6 @@ function WebSearchPageInner(props) {
                 children: active === "" ? t("page.activeNone") : active
               })
             ] }),
-            active === "dsh-websearch" && registered !== null && (0, import_jsx_runtime.jsx)("span", {
-              style: registered.registered ? styles.green : styles.red,
-              children: registered.registered ? t("page.registered") : `${t("page.notRegistered")}${registered.reason || registered.step || t("page.unknown")}`
-            }),
             // Only one of the two can apply at a time, so only that one is drawn.
             active === "dsh-websearch" ? (0, import_jsx_runtime.jsx)("button", {
               className: "dws-button",
