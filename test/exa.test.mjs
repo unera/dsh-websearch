@@ -219,8 +219,9 @@ test('a broken or missing counter file starts from zeros', async () => {
   fs.mkdirSync(countersDir(), { recursive: true })
   fs.writeFileSync(path.join(countersDir(), 'h-broken.json'), '{not json', 'utf8')
 
-  assert.deepEqual(statsOf('h-broken'), { searches: 0, errors: 0, lastSearch: 0, lastError: 0 })
-  assert.deepEqual(statsOf('h-missing1'), { searches: 0, errors: 0, lastSearch: 0, lastError: 0 })
+  const zeros = { searches: 0, errors: 0, lastSearch: 0, lastError: 0, fetches: 0, fetchErrors: 0, lastFetch: 0, lastFetchError: 0 }
+  assert.deepEqual(statsOf('h-broken'), zeros)
+  assert.deepEqual(statsOf('h-missing1'), zeros)
 })
 
 test('reset zeroes both counters and both dates on disk', async () => {
@@ -234,8 +235,9 @@ test('reset zeroes both counters and both dates on disk', async () => {
 
   const response = await callHandler(handler, { body: { action: 'reset', index: 0 } })
   assert.equal(response.status, 200)
-  assert.deepEqual(statsOf('h-zero1'), { searches: 0, errors: 0, lastSearch: 0, lastError: 0 })
-  assert.deepEqual(response.payload.providers[0].stats, { searches: 0, errors: 0, lastSearch: 0, lastError: 0 })
+  const zeros = { searches: 0, errors: 0, lastSearch: 0, lastError: 0, fetches: 0, fetchErrors: 0, lastFetch: 0, lastFetchError: 0 }
+  assert.deepEqual(statsOf('h-zero1'), zeros)
+  assert.deepEqual(response.payload.providers[0].stats, zeros)
 })
 
 test('state reports providers, counters and registration', async () => {
@@ -416,4 +418,29 @@ test('a disabled provider drops out without rebuilding the aggregator', async ()
 
   configs = configs.map(c => ({ ...c, enabled: false }))
   assert.equal(aggregator.available(), false)
+})
+
+test('counts fetches separately from searches', async () => {
+  const { countProvider, statsOf, clearCounterCache } = await import('../index.mjs')
+  clearCounterCache()
+  const provider = countProvider({
+    id: 'h-fetch1',
+    async search() { return { sources: [] } },
+    async fetch() { return { url: 'https://x', statusCode: 200, body: { kind: 'text', content: 'x' }, truncated: false } },
+  })
+  await provider.search({ query: 'q' })
+  await provider.fetch({ url: 'https://x' })
+  await provider.fetch({ url: 'https://y' })
+
+  const stats = statsOf('h-fetch1')
+  assert.equal(stats.searches, 1)
+  assert.equal(stats.errors, 0)
+  assert.equal(stats.fetches, 2)
+  assert.equal(stats.fetchErrors, 0)
+  assert.equal(stats.lastFetch > 0, true)
+
+  const failing = countProvider({ id: 'h-fetch2', async search() { return { sources: [] } }, async fetch() { throw new Error('nope') } })
+  await assert.rejects(() => failing.fetch({ url: 'https://z' }))
+  assert.equal(statsOf('h-fetch2').fetchErrors, 1)
+  assert.equal(statsOf('h-fetch2').lastFetchError > 0, true)
 })

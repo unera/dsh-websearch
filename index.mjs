@@ -494,18 +494,26 @@ export function countersDir(env = process.env) {
   return path.join(home, 'storages', 'dsh-websearch-counters')
 }
 
-const ZERO_STATS = Object.freeze({ searches: 0, errors: 0, lastSearch: 0, lastError: 0 })
+const ZERO_STATS = Object.freeze({
+  searches: 0, errors: 0, lastSearch: 0, lastError: 0,
+  fetches: 0, fetchErrors: 0, lastFetch: 0, lastFetchError: 0,
+})
 
 /** What this process actually registered with the `web` seam; the page reports it. */
 export const runtimeState = { registered: false, reason: '', step: 'plugin loaded' }
 
-/** Keep only the four counter fields, so a hand-edited file cannot poison the page. */
+/** Keep only the counter fields, so a hand-edited file cannot poison the page. */
 function sanitizeStats(value) {
   const count = field => {
     const number = Number(value?.[field])
     return Number.isFinite(number) && number > 0 ? Math.floor(number) : 0
   }
-  return { searches: count('searches'), errors: count('errors'), lastSearch: count('lastSearch'), lastError: count('lastError') }
+  return {
+    searches: count('searches'), errors: count('errors'),
+    lastSearch: count('lastSearch'), lastError: count('lastError'),
+    fetches: count('fetches'), fetchErrors: count('fetchErrors'),
+    lastFetch: count('lastFetch'), lastFetchError: count('lastFetchError'),
+  }
 }
 
 let cacheDir = null
@@ -567,9 +575,12 @@ export function forgetStats(id) {
   try { fs.unlinkSync(file) } catch { /* nothing to remove */ }
 }
 
-/** Wrap one provider so every completed search and every failure is counted. */
+/**
+ * Wrap one provider so every completed search or page fetch, and every failure of
+ * either, is counted. Search and fetch keep their own pair of counters and dates.
+ */
 export function countProvider(provider) {
-  return {
+  const wrapped = {
     ...provider,
     async search(request, signal) {
       const before = statsOf(provider.id)
@@ -583,6 +594,20 @@ export function countProvider(provider) {
       }
     },
   }
+  if (typeof provider.fetch === 'function') {
+    wrapped.fetch = async (request, signal) => {
+      const before = statsOf(provider.id)
+      try {
+        const result = await provider.fetch(request, signal)
+        saveStats(provider.id, { ...before, fetches: before.fetches + 1, lastFetch: Date.now() })
+        return result
+      } catch (error) {
+        saveStats(provider.id, { ...before, fetchErrors: before.fetchErrors + 1, lastFetchError: Date.now() })
+        throw error
+      }
+    }
+  }
+  return wrapped
 }
 
 const PROVIDER_ID = /^[A-Za-z][A-Za-z0-9_-]{5,7}$/

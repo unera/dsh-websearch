@@ -38,9 +38,12 @@ export const en = {
   'list.down': 'Move down',
   'list.delete': 'Delete',
   'list.reset': 'reset',
-  'list.counters': 'requests/errors: ',
+  'list.counters': 'searches and fetches: ',
+  'list.and': ' and ',
   'list.lastSearch': 'last search: ',
-  'list.lastError': 'last error: ',
+  'list.lastError': 'last search error: ',
+  'list.lastFetch': 'last fetch: ',
+  'list.lastFetchError': 'last fetch error: ',
   'common.loading': 'Loading…',
   'common.never': 'never'
 }
@@ -76,9 +79,12 @@ export const ru = {
   'list.down': 'Ниже',
   'list.delete': 'Удалить',
   'list.reset': 'сбросить',
-  'list.counters': 'запросов/ошибок: ',
+  'list.counters': 'запросов и выборок: ',
+  'list.and': ' и ',
   'list.lastSearch': 'последний поиск: ',
-  'list.lastError': 'последняя ошибка: ',
+  'list.lastError': 'последняя ошибка поиска: ',
+  'list.lastFetch': 'последняя выборка: ',
+  'list.lastFetchError': 'последняя ошибка выборки: ',
   'common.loading': 'Загрузка…',
   'common.never': 'никогда'
 }
@@ -114,9 +120,12 @@ export const zh = {
   'list.down': '下移',
   'list.delete': '删除',
   'list.reset': '重置',
-  'list.counters': '请求/错误：',
+  'list.counters': '搜索与抓取：',
+  'list.and': ' 和 ',
   'list.lastSearch': '上次搜索：',
-  'list.lastError': '上次错误：',
+  'list.lastError': '上次搜索错误：',
+  'list.lastFetch': '上次抓取：',
+  'list.lastFetchError': '上次抓取错误：',
   'common.loading': '正在加载…',
   'common.never': '从未'
 }

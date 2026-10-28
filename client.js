@@ -65,9 +65,12 @@ var en = {
   "list.down": "Move down",
   "list.delete": "Delete",
   "list.reset": "reset",
-  "list.counters": "requests/errors: ",
+  "list.counters": "searches and fetches: ",
+  "list.and": " and ",
   "list.lastSearch": "last search: ",
-  "list.lastError": "last error: ",
+  "list.lastError": "last search error: ",
+  "list.lastFetch": "last fetch: ",
+  "list.lastFetchError": "last fetch error: ",
   "common.loading": "Loading\u2026",
   "common.never": "never"
 };
@@ -102,9 +105,12 @@ var ru = {
   "list.down": "\u041D\u0438\u0436\u0435",
   "list.delete": "\u0423\u0434\u0430\u043B\u0438\u0442\u044C",
   "list.reset": "\u0441\u0431\u0440\u043E\u0441\u0438\u0442\u044C",
-  "list.counters": "\u0437\u0430\u043F\u0440\u043E\u0441\u043E\u0432/\u043E\u0448\u0438\u0431\u043E\u043A: ",
+  "list.counters": "\u0437\u0430\u043F\u0440\u043E\u0441\u043E\u0432 \u0438 \u0432\u044B\u0431\u043E\u0440\u043E\u043A: ",
+  "list.and": " \u0438 ",
   "list.lastSearch": "\u043F\u043E\u0441\u043B\u0435\u0434\u043D\u0438\u0439 \u043F\u043E\u0438\u0441\u043A: ",
-  "list.lastError": "\u043F\u043E\u0441\u043B\u0435\u0434\u043D\u044F\u044F \u043E\u0448\u0438\u0431\u043A\u0430: ",
+  "list.lastError": "\u043F\u043E\u0441\u043B\u0435\u0434\u043D\u044F\u044F \u043E\u0448\u0438\u0431\u043A\u0430 \u043F\u043E\u0438\u0441\u043A\u0430: ",
+  "list.lastFetch": "\u043F\u043E\u0441\u043B\u0435\u0434\u043D\u044F\u044F \u0432\u044B\u0431\u043E\u0440\u043A\u0430: ",
+  "list.lastFetchError": "\u043F\u043E\u0441\u043B\u0435\u0434\u043D\u044F\u044F \u043E\u0448\u0438\u0431\u043A\u0430 \u0432\u044B\u0431\u043E\u0440\u043A\u0438: ",
   "common.loading": "\u0417\u0430\u0433\u0440\u0443\u0437\u043A\u0430\u2026",
   "common.never": "\u043D\u0438\u043A\u043E\u0433\u0434\u0430"
 };
@@ -139,9 +145,12 @@ var zh = {
   "list.down": "\u4E0B\u79FB",
   "list.delete": "\u5220\u9664",
   "list.reset": "\u91CD\u7F6E",
-  "list.counters": "\u8BF7\u6C42/\u9519\u8BEF\uFF1A",
+  "list.counters": "\u641C\u7D22\u4E0E\u6293\u53D6\uFF1A",
+  "list.and": " \u548C ",
   "list.lastSearch": "\u4E0A\u6B21\u641C\u7D22\uFF1A",
-  "list.lastError": "\u4E0A\u6B21\u9519\u8BEF\uFF1A",
+  "list.lastError": "\u4E0A\u6B21\u641C\u7D22\u9519\u8BEF\uFF1A",
+  "list.lastFetch": "\u4E0A\u6B21\u6293\u53D6\uFF1A",
+  "list.lastFetchError": "\u4E0A\u6B21\u6293\u53D6\u9519\u8BEF\uFF1A",
   "common.loading": "\u6B63\u5728\u52A0\u8F7D\u2026",
   "common.never": "\u4ECE\u672A"
 };
@@ -441,13 +450,21 @@ function WebSearchPage(props) {
           (0, import_jsx_runtime.jsxs)("div", { style: styles.under, children: [
             (0, import_jsx_runtime.jsxs)("span", {
               style: styles.counters,
-              title: `${t("list.lastSearch")}${when(stats.lastSearch)}
-${t("list.lastError")}${when(stats.lastError)}`,
+              title: [
+                `${t("list.lastSearch")}${when(stats.lastSearch)}`,
+                `${t("list.lastError")}${when(stats.lastError)}`,
+                `${t("list.lastFetch")}${when(stats.lastFetch)}`,
+                `${t("list.lastFetchError")}${when(stats.lastFetchError)}`
+              ].join("\n"),
               children: [
                 (0, import_jsx_runtime.jsx)("span", { style: styles.muted, children: t("list.counters") }),
                 (0, import_jsx_runtime.jsx)("span", { style: styles.green, children: stats.searches ?? 0 }),
                 (0, import_jsx_runtime.jsx)("span", { style: styles.slash, children: "/" }),
-                (0, import_jsx_runtime.jsx)("span", { style: styles.red, children: stats.errors ?? 0 })
+                (0, import_jsx_runtime.jsx)("span", { style: styles.red, children: stats.errors ?? 0 }),
+                (0, import_jsx_runtime.jsx)("span", { style: styles.muted, children: t("list.and") }),
+                (0, import_jsx_runtime.jsx)("span", { style: styles.green, children: stats.fetches ?? 0 }),
+                (0, import_jsx_runtime.jsx)("span", { style: styles.slash, children: "/" }),
+                (0, import_jsx_runtime.jsx)("span", { style: styles.red, children: stats.fetchErrors ?? 0 })
               ]
             }),
             (0, import_jsx_runtime.jsx)("button", {

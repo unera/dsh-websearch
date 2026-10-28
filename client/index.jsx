@@ -326,12 +326,21 @@ export function WebSearchPage(props) {
           jsxs('div', { style: styles.under, children: [
             jsxs('span', {
               style: styles.counters,
-              title: `${t('list.lastSearch')}${when(stats.lastSearch)}\n${t('list.lastError')}${when(stats.lastError)}`,
+              title: [
+                `${t('list.lastSearch')}${when(stats.lastSearch)}`,
+                `${t('list.lastError')}${when(stats.lastError)}`,
+                `${t('list.lastFetch')}${when(stats.lastFetch)}`,
+                `${t('list.lastFetchError')}${when(stats.lastFetchError)}`,
+              ].join('\n'),
               children: [
                 jsx('span', { style: styles.muted, children: t('list.counters') }),
                 jsx('span', { style: styles.green, children: stats.searches ?? 0 }),
                 jsx('span', { style: styles.slash, children: '/' }),
                 jsx('span', { style: styles.red, children: stats.errors ?? 0 }),
+                jsx('span', { style: styles.muted, children: t('list.and') }),
+                jsx('span', { style: styles.green, children: stats.fetches ?? 0 }),
+                jsx('span', { style: styles.slash, children: '/' }),
+                jsx('span', { style: styles.red, children: stats.fetchErrors ?? 0 }),
               ],
             }),
             jsx('button', {
