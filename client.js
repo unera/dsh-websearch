@@ -333,7 +333,7 @@ function WebSearchPage(props) {
       }),
       active === "dsh-websearch" && registered !== null && (0, import_jsx_runtime.jsx)("span", {
         style: registered.registered ? styles.green : styles.red,
-        children: registered.registered ? t("page.registered") : `${t("page.notRegistered")}${registered.reason || t("page.unknown")}`
+        children: registered.registered ? t("page.registered") : `${t("page.notRegistered")}${registered.reason || registered.step || t("page.unknown")}`
       }),
       active !== "dsh-websearch" && (0, import_jsx_runtime.jsx)("button", {
         className: "dws-button",

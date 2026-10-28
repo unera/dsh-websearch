@@ -497,7 +497,7 @@ export function countersDir(env = process.env) {
 const ZERO_STATS = Object.freeze({ searches: 0, errors: 0, lastSearch: 0, lastError: 0 })
 
 /** What this process actually registered with the `web` seam; the page reports it. */
-export const runtimeState = { registered: false, reason: '' }
+export const runtimeState = { registered: false, reason: '', step: 'plugin loaded' }
 
 /** Keep only the four counter fields, so a hand-edited file cannot poison the page. */
 function sanitizeStats(value) {
@@ -667,6 +667,7 @@ export function createProviderHandler(settings) {
           providerId: SEARCH_PROVIDER_ID,
           registered: runtimeState.registered,
           reason: runtimeState.reason,
+          step: runtimeState.step,
         })
       }
       if (request.method !== 'POST') return json(response, 405, { error: 'method not allowed' })
@@ -767,51 +768,63 @@ export function apply(ctx, config = {}) {
     })
   })
   ctx.inject(['web'], scoped => {
-    // `ctx.get` may refuse a service this fiber did not declare, so a lookup that
-    // throws must not take the whole registration down with it.
-    const service = name => {
+    runtimeState.step = 'web inject entered'
+    try {
+      runtimeState.step = 'web inject entered'
+      // `ctx.get` may refuse a service this fiber did not declare, so a lookup that
+      // throws must not take the whole registration down with it.
+      const service = name => {
+        try {
+          const viaGet = typeof scoped.get === 'function' ? scoped.get(name) : undefined
+          return viaGet ?? scoped[name] ?? null
+        } catch {
+          return scoped[name] ?? null
+        }
+      }
+      const credentials = service('credentials')
+      const settings = service('settings')
+      /** The current provider objects, in list order, freshly built for this call. */
+      const liveProviders = () => {
+        let configs = fallbackConfigs
+        if (typeof settings?.describe === 'function') {
+          const descriptor = settings.describe().find(entry => String(entry.ns) === SETTINGS_NAMESPACE)
+          const stored = descriptor?.value?.providers
+          if (Array.isArray(stored)) configs = normalizeConfigs(stored)
+        }
+        return configs
+          .filter(provider => provider.enabled !== false)
+          .map(provider => countProvider(createProvider(provider, credentials)))
+      }
+      runtimeState.step = 'services resolved'
+      let dispose
       try {
-        const viaGet = typeof scoped.get === 'function' ? scoped.get(name) : undefined
-        return viaGet ?? scoped[name] ?? null
-      } catch {
-        return scoped[name] ?? null
+        dispose = scoped.web.registerSearchProvider(createSearchAggregator(liveProviders))
+      } catch (error) {
+        runtimeState.registered = false
+        runtimeState.reason = `registerSearchProvider failed: ${String(error?.message ?? error)}`
+        throw error
       }
-    }
-    const credentials = service('credentials')
-    const settings = service('settings')
-    /** The current provider objects, in list order, freshly built for this call. */
-    const liveProviders = () => {
-      let configs = fallbackConfigs
-      if (typeof settings?.describe === 'function') {
-        const descriptor = settings.describe().find(entry => String(entry.ns) === SETTINGS_NAMESPACE)
-        const stored = descriptor?.value?.providers
-        if (Array.isArray(stored)) configs = normalizeConfigs(stored)
+      // Every provider that can search also retrieves pages; the same live list serves
+      // both capabilities, so one configured key covers `web_search` and `web_fetch`.
+      let disposeFetch
+      try {
+        disposeFetch = scoped.web.registerFetchProvider(createFetchAggregator(liveProviders))
+      } catch (error) {
+        runtimeState.registered = false
+        runtimeState.reason = `registerFetchProvider failed: ${String(error?.message ?? error)}`
+        throw error
       }
-      return configs
-        .filter(provider => provider.enabled !== false)
-        .map(provider => countProvider(createProvider(provider, credentials)))
-    }
-    let dispose
-    try {
-      dispose = scoped.web.registerSearchProvider(createSearchAggregator(liveProviders))
+      runtimeState.registered = true
+      runtimeState.reason = ''
+      runtimeState.step = 'registered'
+      return () => { runtimeState.registered = false; runtimeState.step = 'disposed'; dispose?.(); disposeFetch?.() }
+
     } catch (error) {
       runtimeState.registered = false
-      runtimeState.reason = `registerSearchProvider failed: ${String(error?.message ?? error)}`
+      runtimeState.reason = String(error?.stack ?? error?.message ?? error)
+      runtimeState.step = 'failed'
       throw error
     }
-    // Every provider that can search also retrieves pages; the same live list serves
-    // both capabilities, so one configured key covers `web_search` and `web_fetch`.
-    let disposeFetch
-    try {
-      disposeFetch = scoped.web.registerFetchProvider(createFetchAggregator(liveProviders))
-    } catch (error) {
-      runtimeState.registered = false
-      runtimeState.reason = `registerFetchProvider failed: ${String(error?.message ?? error)}`
-      throw error
-    }
-    runtimeState.registered = true
-    runtimeState.reason = ''
-    return () => { runtimeState.registered = false; dispose?.(); disposeFetch?.() }
   })
 }
 

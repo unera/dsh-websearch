@@ -234,7 +234,7 @@ export function WebSearchPage(props) {
         style: registered.registered ? styles.green : styles.red,
         children: registered.registered
           ? t('page.registered')
-          : `${t('page.notRegistered')}${registered.reason || t('page.unknown')}`,
+          : `${t('page.notRegistered')}${registered.reason || registered.step || t('page.unknown')}`,
       }),
       active !== 'dsh-websearch' && jsx('button', {
         className: 'dws-button', disabled: busy,
