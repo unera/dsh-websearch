@@ -377,3 +377,43 @@ test('DeepSeek fetch text picks a known field or accepts plain text', async () =
   assert.equal(deepseekFetchText('{"results":[]}'), undefined)
   assert.equal(deepseekFetchText('   '), undefined)
 })
+
+test('reordering the provider list changes which one searches next', async () => {
+  const { createProvider, createSearchAggregator } = await import('../index.mjs')
+  const hits = []
+  const fetchFn = name => async url => {
+    hits.push(name)
+    return { ok: true, status: 200, json: async () => ({ results: [{ url: `https://${name}.example`, title: name, snippet: 's', date: null }] }) }
+  }
+  // Order lives in this array, exactly as it lives in the settings document.
+  let configs = [
+    { id: 'h-dsk10', type: 'deepseek', apiKey: 'k', enabled: true },
+    { id: 'h-exa10', type: 'exa', apiKey: 'k', enabled: true },
+  ]
+  const aggregator = createSearchAggregator(() =>
+    configs.filter(c => c.enabled !== false)
+      .map(c => createProvider(c, undefined, { fetchFn: c.type === 'deepseek' ? fetchFn('deepseek') : fetchFn('exa') })))
+
+  assert.equal((await aggregator.search({ query: 'q' })).sources[0].url, 'https://deepseek.example')
+  configs = [configs[1], configs[0]]
+  assert.equal((await aggregator.search({ query: 'q' })).sources[0].url, 'https://exa.example')
+  assert.deepEqual(hits, ['deepseek', 'exa'])
+})
+
+test('a disabled provider drops out without rebuilding the aggregator', async () => {
+  const { createProvider, createSearchAggregator } = await import('../index.mjs')
+  let configs = [
+    { id: 'h-exa11', type: 'exa', apiKey: 'k', enabled: false },
+    { id: 'h-dsk11', type: 'deepseek', apiKey: 'k', enabled: true },
+  ]
+  const aggregator = createSearchAggregator(() =>
+    configs.filter(c => c.enabled !== false)
+      .map(c => createProvider(c, undefined, {
+        fetchFn: async () => ({ ok: true, status: 200, json: async () => ({ results: [{ url: 'https://ds.example', title: 'ds', snippet: 's', date: null }] }) }),
+      })))
+  assert.equal(aggregator.available(), true)
+  assert.equal((await aggregator.search({ query: 'q' })).sources[0].url, 'https://ds.example')
+
+  configs = configs.map(c => ({ ...c, enabled: false }))
+  assert.equal(aggregator.available(), false)
+})

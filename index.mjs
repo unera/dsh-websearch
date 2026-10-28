@@ -348,15 +348,17 @@ export function createProvider(config, credentials, options) {
     : createExaProvider(config, credentials, options)
 }
 
-export function createSearchAggregator(providers, { deduplicate = true } = {}) {
-  const list = [...providers]
+export function createSearchAggregator(source, { deduplicate = true } = {}) {
+  // `source` may be a function: the provider list and its order are configuration,
+  // so they are read per call rather than captured when the plugin starts.
+  const read = typeof source === 'function' ? source : () => source
   return {
     id: 'dsh-websearch',
-    available: () => list.some(provider => provider.enabled !== false && provider.available()),
+    available: () => read().some(provider => provider.enabled !== false && provider.available()),
     async search(request, signal) {
       let firstError
       const seen = new Set()
-      for (const provider of list) {
+      for (const provider of read()) {
         if (provider.enabled === false || !provider.available()) continue
         try {
           const result = await provider.search(request, signal)
@@ -386,14 +388,15 @@ export function createSearchAggregator(providers, { deduplicate = true } = {}) {
  *
  * @param providers - provider objects, each carrying its own `fetch`.
  */
-export function createFetchAggregator(providers) {
-  const list = [...providers]
+export function createFetchAggregator(source) {
+  // Like the search aggregator: the list is configuration and is read per call.
+  const read = typeof source === 'function' ? source : () => source
   return {
     id: 'dsh-websearch',
-    available: () => list.some(provider => provider.enabled !== false && provider.available()),
+    available: () => read().some(provider => provider.enabled !== false && provider.available()),
     async fetch(request, signal) {
       let firstError
-      for (const provider of list) {
+      for (const provider of read()) {
         if (provider.enabled === false || !provider.available()) continue
         if (typeof provider.fetch !== 'function') continue
         try {
@@ -738,7 +741,10 @@ export function apply(ctx, config = {}) {
   ctx.inject(['settings'], child => {
     child.effect(() => child.settings.configure({ auto: true }, ctx.fiber))
   })
-  const providersConfig = unwrapProviders(config.providers)
+  // The composed config is only the fallback: the settings document is the truth
+  // once it exists, and it is re-read on every search so a reordered list takes
+  // effect at the next query instead of at the next restart.
+  const normalizeConfigs = list => unwrapProviders(list)
     .filter(provider => PROVIDER_TYPES.includes(provider.type ?? 'exa'))
     .map((provider, index) => {
       const id = /^[A-Za-z][A-Za-z0-9_-]{5,7}$/.test(provider.id ?? '') ? provider.id : `h-${String(index).padStart(4, '0')}`
@@ -749,6 +755,7 @@ export function apply(ctx, config = {}) {
         credentialRef: provider.credentialRef || makeCredentialRef(provider.type ?? 'exa', id),
       }
     })
+  const fallbackConfigs = normalizeConfigs(config.providers)
   ctx.inject(['settings', 'webServer'], scoped => {
     const settings = scoped.settings ?? scoped.get?.('settings')
     const server = scoped.webServer ?? scoped.get?.('webServer')
@@ -760,19 +767,24 @@ export function apply(ctx, config = {}) {
     })
   })
   ctx.inject(['web'], scoped => {
-    const credentials = scoped.get('credentials')
-    const providers = providersConfig
-      .filter(provider => provider.enabled !== false)
-      .map(provider => countProvider(createProvider(provider, credentials)))
-    if (providers.length === 0) {
-      runtimeState.registered = false
-      runtimeState.reason = 'no enabled provider is configured'
-      return undefined
+    const credentials = scoped.get?.('credentials') ?? scoped.credentials ?? null
+    const settings = scoped.get?.('settings') ?? scoped.settings
+    /** The current provider objects, in list order, freshly built for this call. */
+    const liveProviders = () => {
+      let configs = fallbackConfigs
+      if (typeof settings?.describe === 'function') {
+        const descriptor = settings.describe().find(entry => String(entry.ns) === SETTINGS_NAMESPACE)
+        const stored = descriptor?.value?.providers
+        if (Array.isArray(stored)) configs = normalizeConfigs(stored)
+      }
+      return configs
+        .filter(provider => provider.enabled !== false)
+        .map(provider => countProvider(createProvider(provider, credentials)))
     }
-    const dispose = scoped.web.registerSearchProvider(createSearchAggregator(providers))
-    // Every provider that can search also retrieves pages; the same list serves both
-    // capabilities, so one configured key covers `web_search` and `web_fetch`.
-    const disposeFetch = scoped.web.registerFetchProvider(createFetchAggregator(providers))
+    const dispose = scoped.web.registerSearchProvider(createSearchAggregator(liveProviders))
+    // Every provider that can search also retrieves pages; the same live list serves
+    // both capabilities, so one configured key covers `web_search` and `web_fetch`.
+    const disposeFetch = scoped.web.registerFetchProvider(createFetchAggregator(liveProviders))
     runtimeState.registered = true
     runtimeState.reason = ''
     return () => { runtimeState.registered = false; dispose?.(); disposeFetch?.() }
