@@ -272,3 +272,54 @@ test('an empty endpoints.search still calls the Exa endpoint', async () => {
   await provider.search({ query: 'q' })
   assert.deepEqual(calls, ['https://api.exa.ai/search'])
 })
+
+test('maps DeepSeek native search blocks to sources', async () => {
+  const { mapDeepseekResponse } = await import('../index.mjs')
+  const payload = {
+    content: [
+      { type: 'text', text: 'answer', citations: [{ url: 'https://a.example', cited_text: 'quote a' }] },
+      { type: 'web_search_tool_result', content: [
+        { type: 'web_search_result', url: 'https://a.example', title: 'A', page_age: '2 days' },
+        { type: 'web_search_result', url: 'https://a.example', title: 'dup' },
+        { type: 'web_search_result', url: 'https://b.example', title: 'B' },
+      ] },
+    ],
+  }
+  assert.deepEqual(mapDeepseekResponse(payload).sources, [
+    { url: 'https://a.example', title: 'A', snippet: 'quote a', publishedAt: '2 days' },
+    { url: 'https://b.example', title: 'B' },
+  ])
+  assert.throws(() => mapDeepseekResponse({ content: [{ type: 'text', text: 'no search' }] }), /no web_search_tool_result/)
+})
+
+test('DeepSeek provider speaks the Anthropic messages protocol', async () => {
+  const { createProvider } = await import('../index.mjs')
+  const calls = []
+  const provider = createProvider({ id: 'h-dsk01', type: 'deepseek', apiKey: 'k-9', enabled: true }, undefined, {
+    fetchFn: async (url, init) => {
+      calls.push({ url, init })
+      return {
+        ok: true, status: 200,
+        json: async () => ({ content: [{ type: 'web_search_tool_result', content: [{ type: 'web_search_result', url: 'https://x.example', title: 'X' }] }] }),
+      }
+    },
+  })
+  assert.equal(provider.type, 'deepseek')
+  const result = await provider.search({ query: 'курс доллара' })
+  assert.deepEqual(result.sources, [{ url: 'https://x.example', title: 'X' }])
+
+  const [{ url, init }] = calls
+  assert.equal(url, 'https://api.deepseek.com/anthropic/v1/messages')
+  assert.equal(init.headers['x-api-key'], 'k-9')
+  assert.equal(init.headers.authorization, 'Bearer k-9')
+  assert.equal(init.headers['anthropic-version'], '2023-06-01')
+  const body = JSON.parse(init.body)
+  assert.equal(body.tools[0].type, 'web_search_20250305')
+  assert.match(body.messages[0].content[0].text, /курс доллара/)
+})
+
+test('createProvider picks the protocol by type', async () => {
+  const { createProvider } = await import('../index.mjs')
+  assert.equal(createProvider({ ...config }, undefined).type, 'exa')
+  assert.equal(createProvider({ ...config, id: 'h-dsk02', type: 'deepseek' }, undefined).type, 'deepseek')
+})

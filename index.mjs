@@ -10,14 +10,22 @@ export const name = 'dsh-websearch'
 export const inject = ['web', 'settings']
 
 export const EXA_SEARCH_URL = 'https://api.exa.ai/search'
+
+/** Anthropic-compatible Messages endpoint DeepSeek serves native web search on. */
+export const DEEPSEEK_BASE_URL = 'https://api.deepseek.com/anthropic/v1'
+/** Auxiliary-search model and wire constants, aligned with dsh-web-search-deepseek. */
+export const DEEPSEEK_MODEL = 'deepseek-v4-flash'
+export const DEEPSEEK_API_VERSION = '2023-06-01'
+export const DEEPSEEK_MAX_TOKENS = 4096
+export const DEEPSEEK_MAX_USES = 5
 export const INTERNAL_PROVIDER_ID = 'internal'
 
 const ProviderConfigSchema = z.object({
   id: z.string().default('h-new00').hidden().disabled(),
-  type: z.string().default('exa').hidden().disabled(),
+  type: z.string().default('exa').hidden(),
   desc: z.string().default(''),
   apiKey: z.string().role('secret').default(''),
-  credentialRef: z.string().role('credential-ref').default('').hidden().disabled(),
+  credentialRef: z.string().role('credential-ref').default('').hidden(),
   enabled: z.boolean().default(true),
   endpoints: z.object({ search: z.string().default('').hidden().disabled() }).default({}).hidden().disabled(),
   throttle: z.object({
@@ -112,6 +120,134 @@ export function createExaProvider(config, credentials, { fetchFn = fetch } = {})
       return { sources, truncated: request.maxResults !== undefined && sources.length > request.maxResults }
     },
   }
+}
+
+/**
+ * Map a DeepSeek Anthropic Messages response onto `WebSearchResult`.
+ *
+ * Native search answers with `web_search_tool_result` blocks; their absence means
+ * the request never triggered a search, which is an error rather than something
+ * to scrape out of prose.
+ *
+ * @param payload - Parsed Messages response body.
+ * @returns Deduped sources joined to their citation excerpts.
+ * @throws {@link WebError} when the response carries no native result block.
+ */
+export function mapDeepseekResponse(payload) {
+  const blocks = Array.isArray(payload?.content) ? payload.content : []
+  const results = blocks.filter(block => block?.type === 'web_search_tool_result')
+  if (results.length === 0) {
+    throw new WebError(
+      'DeepSeek returned no web_search_tool_result blocks; the request may not have triggered native web search',
+      'WEB_PROVIDER_ERROR',
+    )
+  }
+  const snippets = new Map()
+  for (const block of blocks) {
+    if (block?.type !== 'text') continue
+    for (const cite of block.citations ?? []) {
+      if (cite?.url && cite.cited_text && !snippets.has(cite.url)) snippets.set(cite.url, cite.cited_text)
+    }
+  }
+  const seen = new Set()
+  const sources = []
+  for (const block of results) {
+    for (const item of block.content ?? []) {
+      if (item?.type !== 'web_search_result' || typeof item.url !== 'string' || item.url === '' || seen.has(item.url)) continue
+      seen.add(item.url)
+      const snippet = snippets.get(item.url)
+      sources.push({
+        url: item.url,
+        ...item.title ? { title: item.title } : {},
+        ...snippet ? { snippet } : {},
+        ...item.page_age ? { publishedAt: item.page_age } : {},
+      })
+    }
+  }
+  return { sources, truncated: false }
+}
+
+/**
+ * A DeepSeek-backed search provider: one Anthropic-compatible Messages call with the
+ * native `web_search_20250305` server tool per query.
+ *
+ * @param config - One provider entry.
+ * @param credentials - Optional credentials seam used to resolve the key reference.
+ * @param options.fetchFn - Transport, replaceable in tests.
+ */
+export function createDeepseekProvider(config, credentials, { fetchFn = fetch } = {}) {
+  const id = normalizeProviderId(config.id)
+  const ref = credentialRef(config.credentialRef ?? makeCredentialRef('deepseek', id))
+  const base = String(config.baseUrl ?? config.endpoints?.search ?? '').trim() || DEEPSEEK_BASE_URL
+  const endpoint = `${base.replace(/\/+$/, '')}/messages`
+  const keyInConfig = String(config.apiKey ?? '').trim() !== ''
+  const keyInEnv = String(process.env[config.credentialRef ?? ''] ?? '').trim() !== ''
+  return {
+    id,
+    type: 'deepseek',
+    desc: config.desc ?? '',
+    credentialRef: config.credentialRef ?? makeCredentialRef('deepseek', id),
+    enabled: config.enabled !== false,
+    throttle: config.throttle ?? undefined,
+    config: config.config ?? {},
+    available: () => keyInConfig || Boolean(credentials) || keyInEnv,
+    async search(request, signal) {
+      const query = String(request.query ?? '').trim()
+      if (!query) return { sources: [], truncated: false }
+      const resolved = await credentials?.resolve(ref)
+      const apiKey = String(config.apiKey ?? '').trim()
+        || String(resolved?.value ?? '').trim()
+        || String(process.env[ref] ?? '').trim()
+        || String(process.env.DEEPSEEK_API_KEY ?? '').trim()
+      if (!apiKey) {
+        throw new WebError(`DeepSeek search has no API key for "${ref}"`, 'WEB_PROVIDER_CREDENTIAL_MISSING')
+      }
+      const body = {
+        model: config.model || DEEPSEEK_MODEL,
+        max_tokens: DEEPSEEK_MAX_TOKENS,
+        messages: [{ role: 'user', content: [{ type: 'text', text: `Perform a web search for the query: ${query}` }] }],
+        tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: DEEPSEEK_MAX_USES }],
+        thinking: { type: 'disabled' },
+      }
+      let response
+      try {
+        response = await fetchFn(endpoint, {
+          method: 'POST',
+          redirect: 'error',
+          headers: {
+            'x-api-key': apiKey,
+            authorization: `Bearer ${apiKey}`,
+            'anthropic-version': DEEPSEEK_API_VERSION,
+            'content-type': 'application/json',
+            accept: 'application/json',
+          },
+          body: JSON.stringify(body),
+          signal,
+        })
+      } catch (error) {
+        if (signal?.aborted) throw new WebError('DeepSeek search aborted', 'WEB_ABORTED', { cause: error })
+        throw new WebError(`DeepSeek search request failed: ${String(error)}`, 'WEB_PROVIDER_ERROR', { cause: error })
+      }
+      if (response.status === 401 || response.status === 403) throw new WebError('DeepSeek rejected the configured API key.', 'WEB_PROVIDER_CREDENTIAL_INVALID')
+      if (response.status === 429) throw new WebError('DeepSeek search was rate limited.', 'WEB_PROVIDER_RATE_LIMITED')
+      if (!response.ok) {
+        const detail = (await response.text().catch(() => '')).replace(/\s+/g, ' ').slice(0, 240)
+        throw new WebError(`DeepSeek search failed (${response.status})${detail ? `: ${detail}` : '.'}`, 'WEB_PROVIDER_ERROR')
+      }
+      let payload
+      try { payload = await response.json() } catch (error) {
+        throw new WebError(`DeepSeek returned malformed JSON: ${String(error)}`, 'WEB_PROVIDER_ERROR', { cause: error })
+      }
+      return mapDeepseekResponse(payload)
+    },
+  }
+}
+
+/** Build the provider a config entry names; the type decides the wire protocol. */
+export function createProvider(config, credentials, options) {
+  return (config.type ?? 'exa') === 'deepseek'
+    ? createDeepseekProvider(config, credentials, options)
+    : createExaProvider(config, credentials, options)
 }
 
 export function createSearchAggregator(providers, { deduplicate = true } = {}) {
@@ -213,7 +349,7 @@ export const SEARCH_PROVIDER_ID = 'dsh-websearch'
  * Provider types this build can talk to. The form's select offers exactly these,
  * and `/providers` refuses anything else instead of storing a type it cannot run.
  */
-export const PROVIDER_TYPES = Object.freeze(['exa'])
+export const PROVIDER_TYPES = Object.freeze(['exa', 'deepseek'])
 /** The `web` seam's namespace, whose `searchProvider` field selects the active provider. */
 export const WEB_NAMESPACE = 'web'
 
@@ -472,7 +608,7 @@ export function apply(ctx, config = {}) {
     child.effect(() => child.settings.configure({ auto: true }, ctx.fiber))
   })
   const providersConfig = unwrapProviders(config.providers)
-    .filter(provider => (provider.type ?? 'exa') === 'exa')
+    .filter(provider => PROVIDER_TYPES.includes(provider.type ?? 'exa'))
     .map((provider, index) => {
       const id = /^[A-Za-z][A-Za-z0-9_-]{5,7}$/.test(provider.id ?? '') ? provider.id : `h-${String(index).padStart(4, '0')}`
       return {
@@ -496,10 +632,10 @@ export function apply(ctx, config = {}) {
     const credentials = scoped.get('credentials')
     const providers = providersConfig
       .filter(provider => provider.enabled !== false)
-      .map(provider => countProvider(createExaProvider(provider, credentials)))
+      .map(provider => countProvider(createProvider(provider, credentials)))
     if (providers.length === 0) {
       runtimeState.registered = false
-      runtimeState.reason = 'no enabled exa provider is configured'
+      runtimeState.reason = 'no enabled provider is configured'
       return undefined
     }
     const dispose = scoped.web.registerSearchProvider(createSearchAggregator(providers))

@@ -31,6 +31,7 @@ test('the three languages are actually different where it matters', () => {
 
 test('the namespace and the type table are stable', () => {
   assert.equal(NS, 'dsh-websearch')
-  assert.deepEqual([...TYPE_OPTIONS], ['exa'])
+  assert.deepEqual([...TYPE_OPTIONS], ['exa', 'deepseek'])
   assert.equal(TYPE_LABELS.exa, 'Exa')
+  assert.equal(TYPE_LABELS.deepseek, 'DeepSeek')
 })
