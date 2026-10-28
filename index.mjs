@@ -781,16 +781,8 @@ export function apply(ctx, config = {}) {
       runtimeState.step = 'web inject entered'
       // `ctx.get` may refuse a service this fiber did not declare, so a lookup that
       // throws must not take the whole registration down with it.
-      const service = name => {
-        try {
-          const viaGet = typeof scoped.get === 'function' ? scoped.get(name) : undefined
-          return viaGet ?? scoped[name] ?? null
-        } catch {
-          return scoped[name] ?? null
-        }
-      }
-      const credentials = service('credentials')
-      const settings = service('settings')
+      const credentials = shared.credentials
+      const settings = shared.settings
       /** The current provider objects, in list order, freshly built for this call. */
       const liveProviders = () => {
         let configs = fallbackConfigs
