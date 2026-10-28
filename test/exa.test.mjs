@@ -273,26 +273,23 @@ test('an empty endpoints.search still calls the Exa endpoint', async () => {
   assert.deepEqual(calls, ['https://api.exa.ai/search'])
 })
 
-test('maps DeepSeek native search blocks to sources', async () => {
+test('maps a DeepSeek Search API answer to sources', async () => {
   const { mapDeepseekResponse } = await import('../index.mjs')
   const payload = {
-    content: [
-      { type: 'text', text: 'answer', citations: [{ url: 'https://a.example', cited_text: 'quote a' }] },
-      { type: 'web_search_tool_result', content: [
-        { type: 'web_search_result', url: 'https://a.example', title: 'A', page_age: '2 days' },
-        { type: 'web_search_result', url: 'https://a.example', title: 'dup' },
-        { type: 'web_search_result', url: 'https://b.example', title: 'B' },
-      ] },
+    results: [
+      { url: 'https://a.example', title: 'A', snippet: 'short', summary: 'long', date: '2026-10-28' },
+      { url: 'https://b.example', title: '', snippet: '', summary: 'only summary', date: null },
+      { url: '', title: 'no url' },
     ],
   }
   assert.deepEqual(mapDeepseekResponse(payload).sources, [
-    { url: 'https://a.example', title: 'A', snippet: 'quote a', publishedAt: '2 days' },
-    { url: 'https://b.example', title: 'B' },
+    { url: 'https://a.example', title: 'A', snippet: 'short', publishedAt: '2026-10-28' },
+    { url: 'https://b.example', snippet: 'only summary' },
   ])
-  assert.throws(() => mapDeepseekResponse({ content: [{ type: 'text', text: 'no search' }] }), /no web_search_tool_result/)
+  assert.throws(() => mapDeepseekResponse({ nope: true }), /unexpected body/)
 })
 
-test('DeepSeek provider speaks the Anthropic messages protocol', async () => {
+test('DeepSeek provider calls the Search API directly', async () => {
   const { createProvider } = await import('../index.mjs')
   const calls = []
   const provider = createProvider({ id: 'h-dsk01', type: 'deepseek', apiKey: 'k-9', enabled: true }, undefined, {
@@ -300,22 +297,22 @@ test('DeepSeek provider speaks the Anthropic messages protocol', async () => {
       calls.push({ url, init })
       return {
         ok: true, status: 200,
-        json: async () => ({ content: [{ type: 'web_search_tool_result', content: [{ type: 'web_search_result', url: 'https://x.example', title: 'X' }] }] }),
+        json: async () => ({ results: [{ url: 'https://x.example', title: 'X', snippet: 's', date: null }] }),
       }
     },
   })
   assert.equal(provider.type, 'deepseek')
   const result = await provider.search({ query: 'курс доллара' })
-  assert.deepEqual(result.sources, [{ url: 'https://x.example', title: 'X' }])
+  assert.deepEqual(result.sources, [{ url: 'https://x.example', title: 'X', snippet: 's' }])
 
   const [{ url, init }] = calls
-  assert.equal(url, 'https://api.deepseek.com/anthropic/v1/messages')
-  assert.equal(init.headers['x-api-key'], 'k-9')
+  assert.equal(url, 'https://api.deepseek.com/v1/tools/search')
   assert.equal(init.headers.authorization, 'Bearer k-9')
-  assert.equal(init.headers['anthropic-version'], '2023-06-01')
+  assert.equal(init.headers['x-api-key'], undefined)
   const body = JSON.parse(init.body)
-  assert.equal(body.tools[0].type, 'web_search_20250305')
-  assert.match(body.messages[0].content[0].text, /курс доллара/)
+  assert.equal(body.query, 'курс доллара')
+  assert.equal(body.count, 10)
+  assert.equal(body.need_content, false)
 })
 
 test('createProvider picks the protocol by type', async () => {

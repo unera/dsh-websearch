@@ -15,13 +15,15 @@ export const EXA_CONTENTS_URL = 'https://api.exa.ai/contents'
 /** DeepSeek's own page retrieval, alongside its `tools/search`. */
 export const DEEPSEEK_FETCH_URL = 'https://api.deepseek.com/v1/tools/fetch'
 
-/** Anthropic-compatible Messages endpoint DeepSeek serves native web search on. */
-export const DEEPSEEK_BASE_URL = 'https://api.deepseek.com/anthropic/v1'
-/** Auxiliary-search model and wire constants, aligned with dsh-web-search-deepseek. */
-export const DEEPSEEK_MODEL = 'deepseek-v4-flash'
-export const DEEPSEEK_API_VERSION = '2023-06-01'
-export const DEEPSEEK_MAX_TOKENS = 4096
-export const DEEPSEEK_MAX_USES = 5
+/**
+ * DeepSeek Search API base, including its `/v1/tools` prefix; `/search` is appended.
+ * This is the deployment's default provider (`deepseek-search-api`), a direct
+ * request with no auxiliary model turn — the Messages-based `web_search` tool is
+ * a different, weaker path.
+ */
+export const DEEPSEEK_BASE_URL = 'https://api.deepseek.com/v1/tools'
+/** Results requested per search, the service's own default. */
+export const DEEPSEEK_DEFAULT_COUNT = 10
 export const INTERNAL_PROVIDER_ID = 'internal'
 
 const ProviderConfigSchema = z.object({
@@ -179,53 +181,34 @@ export function createExaProvider(config, credentials, { fetchFn = fetch } = {})
 }
 
 /**
- * Map a DeepSeek Anthropic Messages response onto `WebSearchResult`.
- *
- * Native search answers with `web_search_tool_result` blocks; their absence means
- * the request never triggered a search, which is an error rather than something
- * to scrape out of prose.
- *
- * @param payload - Parsed Messages response body.
- * @returns Deduped sources joined to their citation excerpts.
- * @throws {@link WebError} when the response carries no native result block.
+ * Map a DeepSeek Search API response onto `WebSearchResult`.
+ * @param payload - Parsed response body.
+ * @returns Sources in provider order, with the display snippet kept.
+ * @throws {@link WebError} when the body is not a Search API answer.
  */
 export function mapDeepseekResponse(payload) {
-  const blocks = Array.isArray(payload?.content) ? payload.content : []
-  const results = blocks.filter(block => block?.type === 'web_search_tool_result')
-  if (results.length === 0) {
-    throw new WebError(
-      'DeepSeek returned no web_search_tool_result blocks; the request may not have triggered native web search',
-      'WEB_PROVIDER_ERROR',
-    )
+  if (payload === null || typeof payload !== 'object' || !Array.isArray(payload.results)) {
+    throw new WebError('DeepSeek Search API returned an unexpected body', 'WEB_PROVIDER_ERROR')
   }
-  const snippets = new Map()
-  for (const block of blocks) {
-    if (block?.type !== 'text') continue
-    for (const cite of block.citations ?? []) {
-      if (cite?.url && cite.cited_text && !snippets.has(cite.url)) snippets.set(cite.url, cite.cited_text)
-    }
-  }
-  const seen = new Set()
   const sources = []
-  for (const block of results) {
-    for (const item of block.content ?? []) {
-      if (item?.type !== 'web_search_result' || typeof item.url !== 'string' || item.url === '' || seen.has(item.url)) continue
-      seen.add(item.url)
-      const snippet = snippets.get(item.url)
-      sources.push({
-        url: item.url,
-        ...item.title ? { title: item.title } : {},
-        ...snippet ? { snippet } : {},
-        ...item.page_age ? { publishedAt: item.page_age } : {},
-      })
-    }
+  for (const item of payload.results) {
+    if (item === null || typeof item !== 'object') continue
+    if (typeof item.url !== 'string' || item.url === '') continue
+    const snippet = typeof item.snippet === 'string' && item.snippet !== ''
+      ? item.snippet
+      : (typeof item.summary === 'string' && item.summary !== '' ? item.summary : undefined)
+    sources.push({
+      url: item.url,
+      ...typeof item.title === 'string' && item.title !== '' ? { title: item.title } : {},
+      ...snippet ? { snippet } : {},
+      ...typeof item.date === 'string' && item.date !== '' ? { publishedAt: item.date } : {},
+    })
   }
   return { sources, truncated: false }
 }
 
 /**
- * A DeepSeek-backed search provider: one Anthropic-compatible Messages call with the
- * native `web_search_20250305` server tool per query.
+ * A DeepSeek-backed search provider: one direct Search API request per query.
  *
  * @param config - One provider entry.
  * @param credentials - Optional credentials seam used to resolve the key reference.
@@ -235,7 +218,8 @@ export function createDeepseekProvider(config, credentials, { fetchFn = fetch } 
   const id = normalizeProviderId(config.id)
   const ref = credentialRef(config.credentialRef ?? makeCredentialRef('deepseek', id))
   const base = String(config.baseUrl ?? config.endpoints?.search ?? '').trim() || DEEPSEEK_BASE_URL
-  const endpoint = `${base.replace(/\/+$/, '')}/messages`
+  const endpoint = `${base.replace(/\/+$/, '')}/search`
+  const count = Number.isInteger(config.count) && config.count > 0 ? config.count : DEEPSEEK_DEFAULT_COUNT
   const keyInConfig = String(config.apiKey ?? '').trim() !== ''
   const keyInEnv = String(process.env[config.credentialRef ?? ''] ?? '').trim() !== ''
   return {
@@ -258,11 +242,9 @@ export function createDeepseekProvider(config, credentials, { fetchFn = fetch } 
         throw new WebError(`DeepSeek search has no API key for "${ref}"`, 'WEB_PROVIDER_CREDENTIAL_MISSING')
       }
       const body = {
-        model: config.model || DEEPSEEK_MODEL,
-        max_tokens: DEEPSEEK_MAX_TOKENS,
-        messages: [{ role: 'user', content: [{ type: 'text', text: `Perform a web search for the query: ${query}` }] }],
-        tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: DEEPSEEK_MAX_USES }],
-        thinking: { type: 'disabled' },
+        query,
+        count: Math.min(count, request.maxResults ?? count),
+        need_content: false,
       }
       let response
       try {
@@ -270,9 +252,7 @@ export function createDeepseekProvider(config, credentials, { fetchFn = fetch } 
           method: 'POST',
           redirect: 'error',
           headers: {
-            'x-api-key': apiKey,
             authorization: `Bearer ${apiKey}`,
-            'anthropic-version': DEEPSEEK_API_VERSION,
             'content-type': 'application/json',
             accept: 'application/json',
           },
@@ -300,8 +280,7 @@ export function createDeepseekProvider(config, credentials, { fetchFn = fetch } 
      *
      * The endpoint's exact payload is not pinned down in this build (no API key was
      * available to probe it), so the body is read tolerantly: the first usable text
-     * field wins, and a plain-text answer is accepted as is. That keeps a future
-     * format change from breaking fetch outright.
+     * field wins, and a plain-text answer is accepted as is.
      */
     async fetch(request, signal) {
       const url = String(request?.url ?? '').trim()
@@ -321,7 +300,6 @@ export function createDeepseekProvider(config, credentials, { fetchFn = fetch } 
         response = await fetchFn(fetchEndpoint, {
           method: 'POST',
           headers: {
-            'x-api-key': apiKey,
             authorization: `Bearer ${apiKey}`,
             'content-type': 'application/json',
             accept: 'application/json',
@@ -349,10 +327,8 @@ export function createDeepseekProvider(config, credentials, { fetchFn = fetch } 
 
 /**
  * The text of a `tools/fetch` answer, whatever field this build happens to get.
- *
- * JSON answers are looked through the known names first; anything else is the page
- * itself. An empty result is `undefined`, never an empty string, so a caller can
- * tell "no content" from "empty page".
+ * An empty result is `undefined`, never an empty string, so a caller can tell
+ * "no content" from "empty page".
  */
 export function deepseekFetchText(raw) {
   const body = typeof raw === 'string' ? raw.trim() : ''
