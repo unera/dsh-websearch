@@ -1273,6 +1273,8 @@ export const SETTINGS_NAMESPACE = 'dsh-websearch'
 export const ROUTE_PREFIX = '/__ws'
 /** Page the self-test retrieves: a tiny endpoint that answers with plain text. */
 export const TEST_FETCH_URL = 'https://ifconfig.me'
+/** A self-test half is abandoned after this long, so one slow provider cannot stall the run. */
+export const TEST_TIMEOUT_MS = 30_000
 /** Id this plugin registers its aggregator under and the value `web.searchProvider` names. */
 export const SEARCH_PROVIDER_ID = 'dsh-websearch'
 /**
@@ -1676,24 +1678,31 @@ export function createProviderHandler(settings, credentials = null) {
           credentialRef: provider.credentialRef || makeCredentialRef(type, provider.id ?? ''),
         }, credentialsOf())
         const runOne = async work => {
+          const controller = new AbortController()
+          const timer = setTimeout(() => controller.abort(), TEST_TIMEOUT_MS)
           try {
-            await work()
+            await work(controller.signal)
             return { ok: true }
           } catch (error) {
-            return { ok: false, detail: String(error?.message ?? error).slice(0, 300) }
+            const detail = controller.signal.aborted
+              ? `timed out after ${Math.round(TEST_TIMEOUT_MS / 1000)}s`
+              : String(error?.message ?? error)
+            return { ok: false, detail: detail.slice(0, 300) }
+          } finally {
+            clearTimeout(timer)
           }
         }
         const search = wantsSearch
-          ? await runOne(async () => {
-            const result = await built.search({ query: 'what day is it today' })
+          ? await runOne(async signal => {
+            const result = await built.search({ query: 'what day is it today' }, signal)
             if (!Array.isArray(result?.sources) || result.sources.length === 0) {
               throw new Error('the provider returned no sources')
             }
           })
           : { skipped: true }
         const fetch = wantsFetch && typeof built.fetch === 'function'
-          ? await runOne(async () => {
-            const result = await built.fetch({ url: TEST_FETCH_URL })
+          ? await runOne(async signal => {
+            const result = await built.fetch({ url: TEST_FETCH_URL }, signal)
             const content = result?.body?.content
             if (typeof content !== 'string' || content.trim() === '') {
               throw new Error('the provider returned no text')

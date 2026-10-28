@@ -864,3 +864,9 @@ test('the self-test exercises only what a provider is allowed to do', async () =
   assert.equal(typeof response.payload.search.ok, 'boolean')
   calls.push(response.payload)
 })
+
+test('a self-test half is bounded to thirty seconds', async () => {
+  const { TEST_TIMEOUT_MS, TEST_FETCH_URL } = await import('../index.mjs')
+  assert.equal(TEST_TIMEOUT_MS, 30_000)
+  assert.match(TEST_FETCH_URL, /^https:\/\//)
+})

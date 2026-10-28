@@ -162,10 +162,10 @@ function mountStyle() {
 }
 mountStyle()
 
-async function call(path, body) {
+async function call(path, body, signal) {
   const response = await fetch(`${API}${path}`, body === undefined
-    ? { cache: 'no-store' }
-    : { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
+    ? { cache: 'no-store', ...(signal === undefined ? {} : { signal }) }
+    : { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body), ...(signal === undefined ? {} : { signal }) })
   const text = await response.text()
   const payload = text === '' ? null : JSON.parse(text)
   if (!response.ok) {
@@ -298,12 +298,21 @@ export function WebSearchPage(props) {
       if (provider.enabled === false || (!touchesSearch && !touchesFetch)) continue
       setTests(previous => ({ ...previous, [provider.id]: { running: true } }))
       try {
-        const result = await call('/providers', { action: 'test', index })
+        // Two halves, each capped at 30s on the host, plus slack for the round trip.
+        const controller = new AbortController()
+        const timer = setTimeout(() => controller.abort(), 65_000)
+        let result
+        try {
+          result = await call('/providers', { action: 'test', index }, controller.signal)
+        } finally {
+          clearTimeout(timer)
+        }
         setTests(previous => ({ ...previous, [provider.id]: result }))
       } catch (e) {
+        const detail = e?.name === 'AbortError' ? 'timed out' : String(e?.message ?? e)
         setTests(previous => ({
           ...previous,
-          [provider.id]: { search: { ok: false, detail: String(e?.message ?? e) }, fetch: { skipped: true } },
+          [provider.id]: { search: { ok: false, detail }, fetch: { skipped: true } },
         }))
       }
     }
