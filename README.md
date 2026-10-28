@@ -1,57 +1,74 @@
 # @dr-co/dsh-websearch
 
-One `web` provider for DeepSeek Harness that runs a configurable list of search
-backends, ordered by the user, with separate permissions for searching and for
-retrieving pages.
+## Зачем это нужно?
 
-## What it does
+Из коробки DeepSeek Harness даёт ровно один провайдер веб-поиска, и он не всегда
+тот, который хочется: у одного ключа кончилась квота, другой отвечает быстрее, третий
+умеет вытаскивать текст со страниц, четвёртый лучше ищет по-русски. Менять их можно
+только правкой конфига и перезапуском.
 
-- Registers a single provider id, `dsh-websearch`, for both `web_search` and
-  `web_fetch`. DSH names providers explicitly (`web.searchProvider` /
-  `web.fetchProvider`), so the settings page has one button that registers this
-  aggregator and one that hands control back to DSH's built-in providers.
-- Walks its list from top to bottom: the first enabled provider that is allowed to
-  act and available wins. Credential, rate-limit and provider errors fall through to
-  the next entry; an invalid request (`WEB_INVALID_URL`, `WEB_INVALID_REQUEST`) is
-  reported instead of being retried elsewhere.
-- Reads the list on every call, so reordering or disabling takes effect on the next
-  query rather than at the next restart.
+Этот плагин превращает выбор провайдера в обычный список в настройках:
 
-## Supported provider types
+- **несколько провайдеров одновременно** — поиск идёт по списку сверху вниз, пока
+  один не ответит; порядок меняется кнопками, применение мгновенное;
+- **раздельные права** — «только поиск», «только скачивание» или оба; у чего-то нет
+  эндпоинта для страниц, и включить его там нельзя;
+- **ключи в стандартном месте** — не в файле конфигурации, а в хранилище секретов
+  DSH;
+- **видно, что происходит** — счётчики запросов и ошибок по каждому провайдеру и
+  кнопка самотеста, которая дёргает настоящий поиск и настоящее скачивание (по 30 с
+  на каждую половину) и показывает результат в подсказке;
+- **выключатель на случай поломки** — «Отозвать регистрацию» возвращает DSH к его
+  собственным провайдерам одним нажатием, ничего не удаляя.
 
-| type | search | page fetch | notes |
+## Что умеет
+
+Плагин регистрирует один провайдер с id `dsh-websearch` сразу для `web_search` и
+`web_fetch`. DSH выбирает провайдеров явно (`web.searchProvider` и
+`web.fetchProvider`), поэтому на странице есть кнопка регистрации агрегатора и
+кнопка отзыва — обе срабатывают без перезапуска.
+
+Список провайдеров читается **на каждый вызов**, так что перестановка строки или
+снятие галочки действуют со следующего запроса. Ошибки делятся на два класса:
+истёкший ключ, лимит и отказ провайдера передают ход следующему в списке, а
+некорректный запрос (`WEB_INVALID_URL`, `WEB_INVALID_REQUEST`) возвращается вызывающему
+как есть — чтобы ошибка в аргументах не маскировалась чужим ответом.
+
+## Поддерживаемые провайдеры
+
+| тип | поиск | скачивание | примечание |
 | --- | --- | --- | --- |
-| `exa` | yes | yes | `/search` and `/contents` |
-| `deepseek` | yes | yes | `/v1/tools/search`, `/v1/tools/fetch` |
-| `openai` | yes | no | Responses API with the `web_search` tool |
-| `jina` | yes | yes | `s.jina.ai`, `r.jina.ai`; the reader also works anonymously |
-| `perplexity` | yes | no | Agent API, `/v1/agent` |
-| `tavily` | yes | yes | `/search`, `/extract` |
-| `firecrawl` | yes | yes | `/v2/search`, `/v2/scrape`; renders JavaScript |
-| `brave` | yes | no | independent index, `/res/v1/web/search` |
-| `serper` | yes | no | Google results, `google.serper.dev/search` |
+| `exa` | да | да | `/search` и `/contents` |
+| `deepseek` | да | да | `/v1/tools/search`, `/v1/tools/fetch` |
+| `openai` | да | нет | Responses API с инструментом `web_search` |
+| `jina` | да | да | `s.jina.ai`, `r.jina.ai`; читалка работает и без ключа |
+| `perplexity` | да | нет | Agent API, `/v1/agent` |
+| `tavily` | да | да | `/search`, `/extract` |
+| `firecrawl` | да | да | `/v2/search`, `/v2/scrape`, рендерит JavaScript |
+| `brave` | да | нет | собственный индекс, `/res/v1/web/search` |
+| `serper` | да | нет | выдача Google, `google.serper.dev/search` |
 
-Search and fetch permissions are stored per provider. A type without a page
-endpoint never stores `useFetch: true`; search stays whatever the user chose.
+Права хранятся отдельно для поиска и для скачивания. Тип без эндпоинта страниц
+никогда не сохранит «разрешить скачивание»; поиск остаётся таким, каким его отметил
+пользователь.
 
-## Secrets
+## Ключи
 
-Keys never live in the configuration document. The settings page writes them to the
-credentials store under `DSH_WEBSEARCH_<TYPE>_<ID>` and leaves `apiKey: ""` in the
-profile patch. Providers resolve, in order: the provider's own `apiKey` field (legacy
-documents only), the credentials store, then the environment variable of the same
-name. On startup a one-time migration moves keys that older builds left in the
-configuration into the store.
+Ключи не попадают в конфигурацию. Страница настроек пишет их в хранилище секретов под
+именем `DSH_WEBSEARCH_<ТИП>_<ID>` и оставляет в профиле `apiKey: ""`. Провайдер берёт
+ключ по порядку: поле `apiKey` самой записи (только для старых конфигов), хранилище
+секретов, переменная окружения с тем же именем. При старте одноразовая миграция
+переносит ключи, оставшиеся в конфигурации от прежних версий, в хранилище.
 
-## Settings page
+## Страница настроек
 
-The `dsh-websearch` section of Settings lists providers with their mark, id,
-capability label and counters. Per row: enable/disable, a self-test button that runs
-the real search and page-retrieval paths (30 s per half) and reports the result in a
-tooltip, reorder, and delete with confirmation. The form above the list adds a
-provider or edits the selected one — the button says *Save …* while editing.
+Секция `dsh-websearch` в Settings показывает список провайдеров с иконкой, id,
+режимом доступа и счётчиками. В строке: включить/выключить, кнопка самотеста,
+перестановка выше/ниже и удаление с подтверждением. Форма над списком добавляет
+провайдера или правит выбранного — пока идёт правка, кнопка называется
+«Сохранить …».
 
-## Configuration
+## Конфигурация
 
 ```yaml
 - name: "@dr-co/dsh-websearch"
@@ -59,29 +76,29 @@ provider or edits the selected one — the button says *Save …* while editing.
     providers:
       - id: dZd8wKm
         type: exa
-        desc: primary
+        desc: основной
         credentialRef: DSH_WEBSEARCH_EXA_DZD8WKM
         enabled: true
         useSearch: true
         useFetch: true
 ```
 
-`web.searchProvider` and `web.fetchProvider` must name `dsh-websearch` for the
-aggregator to be used; a restart applies that change.
+Для работы агрегатора `web.searchProvider` и `web.fetchProvider` должны указывать на
+`dsh-websearch` — это и делает кнопка «Зарегистрировать».
 
-## Install
+## Установка
 
 ```sh
 npm pack
-dsh plugin --profile web add ./dr-co-dsh-websearch-<version>.tgz
+dsh plugin --profile web add ./dr-co-dsh-websearch-<версия>.tgz
 ```
 
-## Tests
+## Тесты
 
 ```sh
 npm test
 ```
 
-The suite drives every provider through an injected transport: no test reaches the
-network, and failures (401/403/429/5xx, `200` with an unusable body, malformed JSON)
-are asserted as classified errors.
+Все провайдеры прогоняются через подменённый транспорт: тесты не ходят в сеть, а
+отказы (401/403/429/5xx, `200` с непригодным телом, битый JSON) проверяются как
+классифицированные ошибки.

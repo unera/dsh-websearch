@@ -1,7 +1,7 @@
 {
   "name": "@dr-co/dsh-websearch",
-  "version": "0.2.0",
-  "description": "Configurable web search provider aggregator for DeepSeek Harness",
+  "version": "0.3.0",
+  "description": "Web search aggregator for DeepSeek Harness: several providers, one ordered list, per-capability permissions",
   "type": "module",
   "main": "./index.mjs",
   "exports": {
