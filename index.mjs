@@ -58,6 +58,8 @@ export function createExaProvider(config, credentials, { fetchFn = fetch } = {})
   const id = normalizeProviderId(config.id)
   const ref = credentialRef(config.credentialRef ?? makeCredentialRef('exa', id))
   const endpoint = config.endpoints?.search ?? EXA_SEARCH_URL
+  const keyInConfig = String(config.apiKey ?? '').trim() !== ''
+  const keyInEnv = String(process.env[config.credentialRef ?? ''] ?? '').trim() !== ''
   return {
     id,
     type: 'exa',
@@ -66,7 +68,10 @@ export function createExaProvider(config, credentials, { fetchFn = fetch } = {})
     enabled: config.enabled !== false,
     throttle: config.throttle ?? undefined,
     config: config.config ?? {},
-    available: () => Boolean(credentials),
+    // Searchable when a key is already in the config, or when the credentials
+    // seam can resolve the reference. Depending on the seam alone reported a
+    // provider with a stored key as unavailable, and `web` then refused to search.
+    available: () => keyInConfig || Boolean(credentials) || keyInEnv,
     async search(request, signal) {
       const query = String(request.query ?? '').trim()
       if (!query) return { sources: [], truncated: false }

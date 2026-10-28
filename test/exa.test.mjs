@@ -235,3 +235,15 @@ test('state reports providers, counters and registration', async () => {
   assert.equal(typeof response.payload.registered, 'boolean')
   assert.equal(response.payload.providerId, 'dsh-websearch')
 })
+
+test('a provider with a stored key is available without the credentials seam', async () => {
+  const { createExaProvider } = await import('../index.mjs')
+  const withKey = createExaProvider({ ...config, apiKey: 'k-1' }, undefined)
+  assert.equal(withKey.available(), true)
+
+  const withoutKey = createExaProvider({ ...config, apiKey: '' }, undefined)
+  assert.equal(withoutKey.available(), false)
+
+  const viaSeam = createExaProvider({ ...config, apiKey: '' }, { resolve: async () => null })
+  assert.equal(viaSeam.available(), true)
+})
