@@ -1,3 +1,7 @@
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+
 import { credentialRef } from '@deepseek-ai/dsh-credentials'
 import { WebError } from '@deepseek-ai/dsh-web'
 import z from '@deepseek-ai/schemastery'
@@ -202,17 +206,84 @@ export const SEARCH_PROVIDER_ID = 'dsh-websearch'
 export const WEB_NAMESPACE = 'web'
 
 /**
- * Per-provider usage counters, keyed by provider id so they survive config edits,
- * and kept in memory: a restart starts every provider back at zero.
+ * Where per-provider counters live: one JSON file per provider, beside the other
+ * plugin state under `$DSH_HOME/storages`.
  */
-export const providerStats = new Map()
+export function countersDir(env = process.env) {
+  const home = typeof env.DSH_HOME === 'string' && env.DSH_HOME !== ''
+    ? path.resolve(env.DSH_HOME)
+    : path.join(os.homedir(), '.dsh')
+  return path.join(home, 'storages', 'dsh-websearch-counters')
+}
 
-/** What this process actually registered with the `web` seam; the page reports it. */
-export const runtimeState = { registered: false, reason: '' }
+const ZERO_STATS = Object.freeze({ searches: 0, errors: 0, lastSearch: 0, lastError: 0 })
 
-/** Counters for one provider, zeroed when it has never run. */
+/** Keep only the four counter fields, so a hand-edited file cannot poison the page. */
+function sanitizeStats(value) {
+  const count = field => {
+    const number = Number(value?.[field])
+    return Number.isFinite(number) && number > 0 ? Math.floor(number) : 0
+  }
+  return { searches: count('searches'), errors: count('errors'), lastSearch: count('lastSearch'), lastError: count('lastError') }
+}
+
+let cacheDir = null
+let cache = new Map()
+
+/** Drop the in-memory copy; the next read comes from disk again. */
+export function clearCounterCache() {
+  cacheDir = null
+  cache.clear()
+}
+
+function countersFile(id) {
+  const dir = countersDir()
+  if (cacheDir !== dir) {
+    cacheDir = dir
+    cache = new Map()
+  }
+  return { dir, file: path.join(dir, `${String(id).replace(/[^A-Za-z0-9_-]/g, '_')}.json`) }
+}
+
+/** Counters for one provider; an unreadable or broken file starts from zeros. */
 export function statsOf(id) {
-  return providerStats.get(id) ?? { searches: 0, errors: 0, lastSearch: 0, lastError: 0 }
+  const key = String(id)
+  const { file } = countersFile(key)
+  if (cache.has(key)) return cache.get(key)
+  let value = { ...ZERO_STATS }
+  try {
+    value = sanitizeStats(JSON.parse(fs.readFileSync(file, 'utf8')))
+  } catch {
+    // Missing, unreadable or unparseable: the provider simply starts at zero.
+  }
+  cache.set(key, value)
+  return value
+}
+
+function saveStats(id, value) {
+  const key = String(id)
+  const { dir, file } = countersFile(key)
+  cache.set(key, value)
+  try {
+    fs.mkdirSync(dir, { recursive: true })
+    fs.writeFileSync(file, `${JSON.stringify(value)}\n`, 'utf8')
+  } catch {
+    // A read-only DSH_HOME must not break searching; counters stay in memory.
+  }
+  return value
+}
+
+/** Zero both counters and both dates. */
+export function resetStats(id) {
+  return saveStats(id, { ...ZERO_STATS })
+}
+
+/** Forget a provider's counters, file included. */
+export function forgetStats(id) {
+  const key = String(id)
+  const { file } = countersFile(key)
+  cache.delete(key)
+  try { fs.unlinkSync(file) } catch { /* nothing to remove */ }
 }
 
 /** Wrap one provider so every completed search and every failure is counted. */
@@ -223,10 +294,10 @@ export function countProvider(provider) {
       const before = statsOf(provider.id)
       try {
         const result = await provider.search(request, signal)
-        providerStats.set(provider.id, { ...before, searches: before.searches + 1, lastSearch: Date.now() })
+        saveStats(provider.id, { ...before, searches: before.searches + 1, lastSearch: Date.now() })
         return result
       } catch (error) {
-        providerStats.set(provider.id, { ...before, errors: before.errors + 1, lastError: Date.now() })
+        saveStats(provider.id, { ...before, errors: before.errors + 1, lastError: Date.now() })
         throw error
       }
     },
@@ -345,14 +416,15 @@ export function createProviderHandler(settings) {
         if (apiKey !== '') next.apiKey = apiKey
         providers[index] = next
       } else if (action === 'delete') {
-        providers.splice(indexOf(providers, body.index), 1)
+        const [removed] = providers.splice(indexOf(providers, body.index), 1)
+        forgetStats(removed?.id ?? '')
       } else if (action === 'move') {
         const index = indexOf(providers, body.index)
         const target = index + Number(body.delta ?? 0)
         if (target < 0 || target >= providers.length) return json(response, 400, { error: 'move is out of range' })
         ;[providers[index], providers[target]] = [providers[target], providers[index]]
       } else if (action === 'reset') {
-        providerStats.delete(String(providers[indexOf(providers, body.index)]?.id ?? ''))
+        resetStats(providers[indexOf(providers, body.index)]?.id ?? '')
       } else if (action === 'select') {
         // The `web` seam never adopts a provider on its own; the page points it here.
         await settings.update(WEB_NAMESPACE, { searchProvider: SEARCH_PROVIDER_ID })

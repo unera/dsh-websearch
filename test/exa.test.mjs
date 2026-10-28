@@ -1,5 +1,12 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+
+// Every counter read/write resolves DSH_HOME lazily, so pointing it at a
+// throwaway directory keeps the suite away from the real deployment state.
+process.env.DSH_HOME = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-websearch-test-'))
 import {
   createExaProvider,
   createSearchAggregator,
@@ -159,8 +166,8 @@ test('saving without a key keeps the stored one', async () => {
 })
 
 test('counts searches and failures per provider', async () => {
-  const { countProvider, statsOf, providerStats } = await import('../index.mjs')
-  providerStats.clear()
+  const { countProvider, statsOf, clearCounterCache } = await import('../index.mjs')
+  clearCounterCache()
   const ok = countProvider({ id: 'h-ok001', async search() { return { sources: [] } } })
   const bad = countProvider({ id: 'h-bad01', async search() { throw new Error('boom') } })
 
@@ -172,18 +179,46 @@ test('counts searches and failures per provider', async () => {
   assert.equal(statsOf('h-ok001').lastSearch > 0, true)
   assert.equal(statsOf('h-bad01').errors, 1)
   assert.equal(statsOf('h-bad01').lastError > 0, true)
-  providerStats.clear()
 })
 
-test('reset clears both counters and both dates', async () => {
-  const { createProviderHandler, providerStats, statsOf } = await import('../index.mjs')
-  providerStats.clear()
-  providerStats.set('h-keep1', { searches: 3, errors: 2, lastSearch: 111, lastError: 222 })
-  const settings = fakeSettings([{ id: 'h-keep1', type: 'exa', desc: '', apiKey: 'k', enabled: true }])
+test('persists counters to one JSON file per provider', async () => {
+  const { countProvider, statsOf, clearCounterCache, countersDir } = await import('../index.mjs')
+  clearCounterCache()
+  const provider = countProvider({ id: 'h-disk1', async search() { return { sources: [] } } })
+  await provider.search({ query: 'q' })
+
+  const file = path.join(countersDir(), 'h-disk1.json')
+  const onDisk = JSON.parse(fs.readFileSync(file, 'utf8'))
+  assert.equal(onDisk.searches, 1)
+  assert.equal(onDisk.errors, 0)
+  assert.equal(onDisk.lastSearch > 0, true)
+
+  // A fresh process reads the same file back.
+  clearCounterCache()
+  assert.equal(statsOf('h-disk1').searches, 1)
+})
+
+test('a broken or missing counter file starts from zeros', async () => {
+  const { statsOf, clearCounterCache, countersDir } = await import('../index.mjs')
+  clearCounterCache()
+  fs.mkdirSync(countersDir(), { recursive: true })
+  fs.writeFileSync(path.join(countersDir(), 'h-broken.json'), '{not json', 'utf8')
+
+  assert.deepEqual(statsOf('h-broken'), { searches: 0, errors: 0, lastSearch: 0, lastError: 0 })
+  assert.deepEqual(statsOf('h-missing1'), { searches: 0, errors: 0, lastSearch: 0, lastError: 0 })
+})
+
+test('reset zeroes both counters and both dates on disk', async () => {
+  const { createProviderHandler, countProvider, statsOf, clearCounterCache } = await import('../index.mjs')
+  clearCounterCache()
+  const provider = countProvider({ id: 'h-zero1', async search() { return { sources: [] } } })
+  await provider.search({ query: 'q' })
+
+  const settings = fakeSettings([{ id: 'h-zero1', type: 'exa', desc: '', apiKey: 'k', enabled: true }])
   const handler = createProviderHandler(settings)
 
   const response = await callHandler(handler, { body: { action: 'reset', index: 0 } })
   assert.equal(response.status, 200)
-  assert.deepEqual(statsOf('h-keep1'), { searches: 0, errors: 0, lastSearch: 0, lastError: 0 })
+  assert.deepEqual(statsOf('h-zero1'), { searches: 0, errors: 0, lastSearch: 0, lastError: 0 })
   assert.deepEqual(response.payload.providers[0].stats, { searches: 0, errors: 0, lastSearch: 0, lastError: 0 })
 })
