@@ -32,6 +32,12 @@ export const OPENAI_DEFAULT_MODEL = 'gpt-5.5'
 export const JINA_READER_URL = 'https://r.jina.ai'
 /** Jina search base; the query is appended. Requires an API key. */
 export const JINA_SEARCH_URL = 'https://s.jina.ai'
+/** Perplexity's OpenAI-compatible endpoint; `/chat/completions` is the operation. */
+export const PERPLEXITY_BASE_URL = 'https://api.perplexity.ai'
+/** Search model; `sonar` answers with citations. */
+export const PERPLEXITY_DEFAULT_MODEL = 'sonar'
+/** Upper bound on the generated answer tokens. */
+export const PERPLEXITY_MAX_TOKENS = 1024
 export const INTERNAL_PROVIDER_ID = 'internal'
 
 const ProviderConfigSchema = z.object({
@@ -609,6 +615,123 @@ export function mapJinaResponse(payload) {
   return { sources, truncated: false }
 }
 
+
+/**
+ * Map a Perplexity answer onto `WebSearchResult`.
+ *
+ * Structured `search_results` is preferred because it carries titles and
+ * snippets; the older `citations` array holds bare URLs and is used only when
+ * `search_results` is absent.
+ *
+ * @param payload - Parsed chat-completions body.
+ * @returns Sources in provider order.
+ * @throws {@link WebError} when the body carries neither shape.
+ */
+export function mapPerplexityResponse(payload) {
+  if (payload === null || typeof payload !== 'object') {
+    throw new WebError('Perplexity returned an unexpected body', 'WEB_PROVIDER_ERROR')
+  }
+  if (Array.isArray(payload.search_results)) {
+    const sources = []
+    for (const item of payload.search_results) {
+      if (item === null || typeof item !== 'object') continue
+      if (typeof item.url !== 'string' || item.url === '') continue
+      sources.push({
+        url: item.url,
+        ...typeof item.title === 'string' && item.title !== '' ? { title: item.title } : {},
+        ...typeof item.snippet === 'string' && item.snippet !== '' ? { snippet: item.snippet } : {},
+        ...typeof item.date === 'string' && item.date !== '' ? { publishedAt: item.date } : {},
+      })
+    }
+    return { sources, truncated: false }
+  }
+  if (Array.isArray(payload.citations)) {
+    const seen = new Set()
+    const sources = []
+    for (const url of payload.citations) {
+      if (typeof url !== 'string' || url === '' || seen.has(url)) continue
+      seen.add(url)
+      sources.push({ url })
+    }
+    return { sources, truncated: false }
+  }
+  throw new WebError('Perplexity returned neither search_results nor citations', 'WEB_PROVIDER_ERROR')
+}
+
+/**
+ * Perplexity search: one OpenAI-compatible chat completion with the `sonar` model.
+ *
+ * Perplexity publishes no page-retrieval endpoint, so the entry searches only and
+ * carries no `fetch` method.
+ *
+ * @param config - One provider entry.
+ * @param credentials - Optional credentials seam used to resolve the key reference.
+ * @param options.fetchFn - Transport, replaceable in tests.
+ */
+export function createPerplexityProvider(config, credentials, { fetchFn = fetch } = {}) {
+  const id = normalizeProviderId(config.id)
+  const ref = credentialRef(config.credentialRef ?? makeCredentialRef('perplexity', id))
+  const base = (String(config.baseUrl ?? '').trim() || PERPLEXITY_BASE_URL).replace(/\/+$/, '')
+  const endpoint = `${base}/chat/completions`
+  const model = String(config.model ?? '').trim() || PERPLEXITY_DEFAULT_MODEL
+  const keyInConfig = String(config.apiKey ?? '').trim() !== ''
+  const keyInEnv = String(process.env[config.credentialRef ?? ''] ?? '').trim() !== ''
+  return {
+    id,
+    type: 'perplexity',
+    desc: config.desc ?? '',
+    credentialRef: config.credentialRef ?? makeCredentialRef('perplexity', id),
+    enabled: config.enabled !== false,
+    throttle: config.throttle ?? undefined,
+    config: config.config ?? {},
+    available: () => keyInConfig || Boolean(credentials) || keyInEnv,
+    async search(request, signal) {
+      const query = String(request.query ?? '').trim()
+      if (!query) return { sources: [], truncated: false }
+      const resolved = await credentials?.resolve(ref)
+      const apiKey = String(config.apiKey ?? '').trim()
+        || String(resolved?.value ?? '').trim()
+        || String(process.env[ref] ?? '').trim()
+      if (!apiKey) {
+        throw new WebError(`Perplexity search has no API key for "${ref}"`, 'WEB_PROVIDER_CREDENTIAL_MISSING')
+      }
+      const body = {
+        model,
+        max_tokens: PERPLEXITY_MAX_TOKENS,
+        messages: [{ role: 'user', content: query }],
+      }
+      let response
+      try {
+        response = await fetchFn(endpoint, {
+          method: 'POST',
+          redirect: 'error',
+          headers: {
+            authorization: `Bearer ${apiKey}`,
+            'content-type': 'application/json',
+            accept: 'application/json',
+          },
+          body: JSON.stringify(body),
+          signal,
+        })
+      } catch (error) {
+        if (signal?.aborted) throw new WebError('Perplexity search aborted', 'WEB_ABORTED', { cause: error })
+        throw new WebError(`Perplexity search request failed: ${String(error)}`, 'WEB_PROVIDER_ERROR', { cause: error })
+      }
+      if (response.status === 401 || response.status === 403) throw new WebError('Perplexity rejected the configured API key.', 'WEB_PROVIDER_CREDENTIAL_INVALID')
+      if (response.status === 429) throw new WebError('Perplexity search was rate limited.', 'WEB_PROVIDER_RATE_LIMITED')
+      if (!response.ok) {
+        const detail = (await response.text().catch(() => '')).replace(/\s+/g, ' ').slice(0, 240)
+        throw new WebError(`Perplexity search failed (${response.status})${detail ? `: ${detail}` : '.'}`, 'WEB_PROVIDER_ERROR')
+      }
+      let payload
+      try { payload = await response.json() } catch (error) {
+        throw new WebError(`Perplexity returned malformed JSON: ${String(error)}`, 'WEB_PROVIDER_ERROR', { cause: error })
+      }
+      return mapPerplexityResponse(payload)
+    },
+  }
+}
+
 /** Build the provider a config entry names; the type decides the wire protocol. */
 export function createProvider(config, credentials, options) {
   const type = config.type ?? 'exa'
@@ -618,7 +741,9 @@ export function createProvider(config, credentials, options) {
       ? createOpenaiProvider(config, credentials, options)
       : type === 'jina'
         ? createJinaProvider(config, credentials, options)
-        : createExaProvider(config, credentials, options)
+        : type === 'perplexity'
+          ? createPerplexityProvider(config, credentials, options)
+          : createExaProvider(config, credentials, options)
   // The aggregators read these: a type may be able to do something the entry is
   // configured not to use, which is how one provider searches while the next
   // one, further down the list, does the page retrieval.
@@ -758,7 +883,7 @@ export const SEARCH_PROVIDER_ID = 'dsh-websearch'
  * Provider types this build can talk to. The form's select offers exactly these,
  * and `/providers` refuses anything else instead of storing a type it cannot run.
  */
-export const PROVIDER_TYPES = Object.freeze(['exa', 'deepseek', 'openai', 'jina'])
+export const PROVIDER_TYPES = Object.freeze(['exa', 'deepseek', 'openai', 'jina', 'perplexity'])
 
 /**
  * What each provider type can do. Search and page retrieval are separate
@@ -772,6 +897,7 @@ export const PROVIDER_CAPABILITIES = Object.freeze({
   openai: Object.freeze({ search: true, fetch: false }),
   // Jina renders pages and searches; the reader works even without a key.
   jina: Object.freeze({ search: true, fetch: true }),
+  perplexity: Object.freeze({ search: true, fetch: false }),
 })
 /** The `web` seam's namespace, whose `searchProvider` field selects the active provider. */
 export const WEB_NAMESPACE = 'web'

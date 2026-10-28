@@ -23,8 +23,15 @@ const OPENAI_ICON = 'data:image/svg+xml;utf8,' + encodeURIComponent(
 /* Jina publishes no SVG mark; this is its favicon rendered at 32px. */
 const JINA_ICON = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAEH0lEQVR4nOVXT2gcZRT/vfd9M9nJkpaWFCxa722gJ9GbpuBB9OLBCdJDabOl0MRLqFoEYRgvwYOHEnoQ3FAiPbhbTz1IPZQEDyp4KGjpQZF6Cbppu7ZJ2Jlv5nvPwybbpjbtJq3k4IOBYXh/ft9v3r+P8KxkenoPdu16Ds4JjKFN9bxXhCHDuQ6mpm5urtiPJAkjTQXnz78G5i9RFPsg0p/PMHRw7nP7VAAABiDwfgqDgwfgnICZ+7IUGYAx7z8dgJER7b07p1BVALq5QU8I3iuI3NMy8IBLWqe+v1+wpt8fXf+VqOrOAiCSnQUA7DADO/gLupVCtMMMADuYA90q/P/mQA/CvzqhAoQ4Zhw6RAAwPz+P0dFRoTSVZx9eNwLQODbUbHo0m36D4sICNEkYAJ4xkPsAkiRhSlOvp04Fy8ArEDnkgUEr8qcl+onS9DcAaMSxGXsY4PZFrK4ND0pTaddqJ1ZEPiCigxXbxSaq6JRlvnzy5Dcrzn28f27ueo+p7YpqtwqYM0YcMwDcGR//YncYzipwsFMU0s7zsp1l5V3nfCEyMGDM20MDA9+3xsffombTN+LYbBsAkYIZUG0xNZt+6cSJ6T1RVLvV6RRZWQoRMQGWiCwBBoC287wsRYYqzJeWa7XDY82mP9Vub6+KVBXMCuAX/rtWe9kSfXi70/EgskT0KKfERDb3vhwwppKLzChA+xcX+1k+HskBVAnGXGURmYqsJVEFPWGZYCJ7N88lNObVW8ePv5SmabllClQVxjCcuw3mKyzAaOY90P9yIoPWKjOPbsWoJ0QeUQQAlzAx0WIFhr3IE0+/4RBdCg9sNTYABREhyxzC8DMAxADKbTraup1qiWrVwPtPcfr0r2g0mAm4GTArVLfS4QjAjS0GL1CtBlhZ+Q6HD3+CRsMgjoWJ6OuKtSR9rNMKqCHiZedyAr4FgL5QqxYYHAyQ5zcQBO/gyBGP69cVRMoh0cyKc63IWlbgsd1NVYu9lQqLan3v7OwfSZKEjwWg6gEIhoYCFMWPWF19HRMTLSQJYW2m8FC9/hcxnwyZKWA2olqqqmi3Ya4/XlWL4UolbOf5NTj3kSYJz28koHsp6Qbt5kcUGQQBI8vOI8uO4OzZxd51bk1Y49jsrdcv33Pu3YCovS+KbGQtWyIyRBQw01AQmOEoClaK4mpA9MbwxYv3AGDh/s2IwEwwxiKKDKpVC2OAsrwC1VFMTr6HM2c6DwcHAEvNptc4NnThwleLR4/+oNXqpFd9U1VfVCBQ4F4h8rMXmdtdr88BgHYnp6DRWJ8HBURWIdKCc7+DaAHAZUxOXgMANBoGY2PycPAu8nX+HphwmiS2s7T0fJFllV3V6h2amVl6IA+IiDYm7LlzLyCKAlQqLRw7ttr7niSMkRHC2NimufUPkcj3dJ0PHO0AAAAASUVORK5CYII='
 
+/* Perplexity mark (Simple Icons, CC0), inlined like the others. */
+const PERPLEXITY_ICON = 'data:image/svg+xml;utf8,' + encodeURIComponent(
+  '<svg role="img" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path fill="#20808D" d="M22.3977 7.0896h-2.3106V.0676l-7.5094 6.3542V.1577h-1.1554v6.1966L4.4904 0v7.0896H1.6023v10.3976h2.8882V24l6.932-6.3591v6.2005h1.1554v-6.0469l6.9318 6.1807v-6.4879h2.8882V7.0896zm-3.4657-4.531v4.531h-5.355l5.355-4.531zm-13.2862.0676 4.8691 4.4634H5.6458V2.6262zM2.7576 16.332V8.245h7.8476l-6.1149 6.1147v1.9723H2.7576zm2.8882 5.0404v-3.8852h.0001v-2.6488l5.7763-5.7764v7.0111l-5.7764 5.2993zm12.7086.0248-5.7766-5.1509V9.0618l5.7766 5.7766v6.5588zm2.8882-5.0652h-1.733v-1.9723L13.3948 8.245h7.8478v8.087z"/></svg>',
+)
+
 /** Provider type → icon data URI. A type without an entry simply shows no icon. */
-const ICONS = { exa: EXA_ICON, deepseek: DEEPSEEK_ICON, openai: OPENAI_ICON, jina: JINA_ICON }
+const ICONS = {
+  exa: EXA_ICON, deepseek: DEEPSEEK_ICON, openai: OPENAI_ICON, jina: JINA_ICON, perplexity: PERPLEXITY_ICON,
+}
 
 const typeLabel = type => TYPE_LABELS[type] ?? String(type ?? '')
 
@@ -43,6 +50,7 @@ const PROVIDER_CAPS = {
   deepseek: { search: true, fetch: true },
   openai: { search: true, fetch: false },
   jina: { search: true, fetch: true },
+  perplexity: { search: true, fetch: false },
 }
 
 const capsKey = capabilities => {
