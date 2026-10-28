@@ -1,0 +1,70 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+    tags-ignore: ['**']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: node ${{ matrix.node }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['22', '24']
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+
+      # No lockfile is committed, so the install must not invent one.
+      - name: Install
+        run: npm install --no-package-lock
+
+      - name: Tests
+        run: npm test
+
+      # The bundle is committed and loaded by the page as-is, so a stale one would
+      # ship silently. Rebuild and fail when the output drifts from the repository.
+      - name: Build the client bundle
+        run: npm run build
+
+      - name: Bundle matches the sources
+        run: |
+          if [ -n "$(git status --porcelain client.js)" ]; then
+            echo 'client.js is out of date: run `npm run build` and commit the result' >&2
+            git --no-pager diff --stat client.js >&2
+            exit 1
+          fi
+
+      - name: Package contents
+        run: |
+          npm pack --dry-run 2>&1 | tee /tmp/pack.txt
+          for file in index.mjs client.js cordis.patch.yml package.json README.md LICENSE; do
+            grep -q " $file$" /tmp/pack.txt || { echo "missing from the tarball: $file" >&2; exit 1; }
+          done
+
+      - name: License and manifest sanity
+        run: |
+          node -e '
+            const pkg = require("./package.json")
+            const fs = require("node:fs")
+            const fail = message => { console.error(message); process.exit(1) }
+            if (pkg.name !== "@dr-co/dsh-websearch") fail("unexpected package name")
+            if (!fs.existsSync("LICENSE")) fail("LICENSE is missing")
+            if (pkg.license !== "MIT") fail("license field must be MIT")
+            if (!pkg.exports?.["./client"]) fail("the client entry must be exported")
+            if (!pkg.dsh?.bundle?.patch) fail("dsh.bundle.patch must be declared")
+            if (!pkg.dsh?.client) fail("dsh.client must be declared")
+            for (const file of pkg.files) {
+              if (!fs.existsSync(file)) fail(`files lists a missing path: ${file}`)
+            }
+          '

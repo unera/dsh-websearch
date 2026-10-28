@@ -1,0 +1,41 @@
+name: release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install
+        run: npm install --no-package-lock
+
+      - name: Tests
+        run: npm test
+
+      - name: Tag matches the manifest
+        run: |
+          version=$(node -p 'require("./package.json").version')
+          if [ "v$version" != "${GITHUB_REF_NAME}" ]; then
+            echo "tag ${GITHUB_REF_NAME} does not match package.json version $version" >&2
+            exit 1
+          fi
+
+      # A granular token with publish rights on @dr-co and 2FA bypass; provenance
+      # comes from the OIDC token, so no long-lived credential is embedded.
+      - name: Publish
+        run: npm publish --access public --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
