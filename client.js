@@ -78,6 +78,7 @@ async function call(path, body) {
   return payload;
 }
 var emptyEntry = { desc: "", apiKey: "", enabled: true };
+var when = (ms) => typeof ms === "number" && ms > 0 ? new Date(ms).toLocaleString() : "never";
 function WebSearchPage() {
   const [providers, setProviders] = (0, import_react.useState)([]);
   const [selected, setSelected] = (0, import_react.useState)(null);
@@ -85,8 +86,10 @@ function WebSearchPage() {
   const [busy, setBusy] = (0, import_react.useState)(false);
   const [error, setError] = (0, import_react.useState)("");
   const [loading, setLoading] = (0, import_react.useState)(true);
+  const [active, setActive] = (0, import_react.useState)("");
   const apply2 = (payload) => {
     if (Array.isArray(payload?.providers)) setProviders(payload.providers);
+    if (typeof payload?.searchProvider === "string") setActive(payload.searchProvider);
   };
   const run = async (action, work) => {
     setBusy(true);
@@ -134,6 +137,18 @@ function WebSearchPage() {
   return (0, import_jsx_runtime.jsxs)("section", { style: styles.page, children: [
     (0, import_jsx_runtime.jsx)("h2", { style: styles.heading, children: "Web search" }),
     (0, import_jsx_runtime.jsx)("p", { style: styles.hint, children: "Exa providers used for web search. Description is optional; a provider can be enabled once its API key is stored." }),
+    (0, import_jsx_runtime.jsxs)("div", { style: styles.row, children: [
+      (0, import_jsx_runtime.jsx)("span", {
+        style: styles.activeLabel,
+        children: active === "dsh-websearch" ? "This aggregator is the active search provider." : `Active search provider: ${active === "" ? "none" : active}`
+      }),
+      active !== "dsh-websearch" && (0, import_jsx_runtime.jsx)("button", {
+        style: styles.button,
+        disabled: busy,
+        onClick: () => run("select", () => call("/providers", { action: "select" })),
+        children: "Use for search"
+      })
+    ] }),
     (0, import_jsx_runtime.jsxs)("div", { style: styles.addCard, children: [
       (0, import_jsx_runtime.jsx)("textarea", {
         className: "dws-field dws-one-line",
@@ -197,6 +212,23 @@ function WebSearchPage() {
           (0, import_jsx_runtime.jsx)("span", { style: styles.id, children: provider.id || "\u2014" }),
           icon !== null && (0, import_jsx_runtime.jsx)("img", { src: icon, alt: typeLabel(provider.type), width: 13, height: 16, style: { flex: "0 0 auto", opacity: on ? 1 : 0.35 } }),
           provider.desc !== "" && (0, import_jsx_runtime.jsx)("span", { style: styles.desc, children: provider.desc }),
+          (0, import_jsx_runtime.jsxs)("span", {
+            style: styles.counters,
+            title: `last search: ${when(provider.stats?.lastSearch)}
+last error: ${when(provider.stats?.lastError)}`,
+            children: [
+              (0, import_jsx_runtime.jsx)("span", { style: styles.green, children: provider.stats?.searches ?? 0 }),
+              (0, import_jsx_runtime.jsx)("span", { style: styles.slash, children: "/" }),
+              (0, import_jsx_runtime.jsx)("span", { style: styles.red, children: provider.stats?.errors ?? 0 })
+            ]
+          }),
+          (0, import_jsx_runtime.jsx)("button", {
+            className: "dws-icon",
+            disabled: busy,
+            title: "reset",
+            onClick: act({ action: "reset", index }),
+            children: "\u27F2"
+          }),
           (0, import_jsx_runtime.jsxs)("span", { style: styles.actions, children: [
             (0, import_jsx_runtime.jsx)("button", { className: "dws-icon", disabled: busy, title: "Delete", onClick: act({ action: "delete", index }), children: "\xD7" }),
             (0, import_jsx_runtime.jsx)("button", { className: "dws-icon", disabled: busy || index === 0, title: "Move up", onClick: act({ action: "move", index, delta: -1 }), children: "\u2191" }),
@@ -225,6 +257,11 @@ var styles = {
   id: { flex: "0 0 auto", fontFamily: "monospace", fontSize: 12, opacity: 0.75 },
   desc: { flex: "1 1 auto", fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
   actions: { display: "flex", flex: "0 0 auto", gap: 4 },
+  counters: { flex: "0 0 auto", fontFamily: "monospace", fontSize: 12, whiteSpace: "nowrap" },
+  green: { color: "#3fb950" },
+  red: { color: "#f85149" },
+  slash: { opacity: 0.5 },
+  activeLabel: { fontSize: 12, opacity: 0.75 },
   row: { alignItems: "center", display: "flex", gap: 8 },
   button: {
     padding: "7px 12px",

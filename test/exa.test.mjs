@@ -157,3 +157,33 @@ test('saving without a key keeps the stored one', async () => {
   assert.equal(settings.state.providers[0].enabled, false)
   assert.equal(settings.state.providers[0].apiKey, 'keep-me')
 })
+
+test('counts searches and failures per provider', async () => {
+  const { countProvider, statsOf, providerStats } = await import('../index.mjs')
+  providerStats.clear()
+  const ok = countProvider({ id: 'h-ok001', async search() { return { sources: [] } } })
+  const bad = countProvider({ id: 'h-bad01', async search() { throw new Error('boom') } })
+
+  await ok.search({ query: 'q' })
+  await ok.search({ query: 'q' })
+  await assert.rejects(() => bad.search({ query: 'q' }))
+
+  assert.equal(statsOf('h-ok001').searches, 2)
+  assert.equal(statsOf('h-ok001').lastSearch > 0, true)
+  assert.equal(statsOf('h-bad01').errors, 1)
+  assert.equal(statsOf('h-bad01').lastError > 0, true)
+  providerStats.clear()
+})
+
+test('reset clears both counters and both dates', async () => {
+  const { createProviderHandler, providerStats, statsOf } = await import('../index.mjs')
+  providerStats.clear()
+  providerStats.set('h-keep1', { searches: 3, errors: 2, lastSearch: 111, lastError: 222 })
+  const settings = fakeSettings([{ id: 'h-keep1', type: 'exa', desc: '', apiKey: 'k', enabled: true }])
+  const handler = createProviderHandler(settings)
+
+  const response = await callHandler(handler, { body: { action: 'reset', index: 0 } })
+  assert.equal(response.status, 200)
+  assert.deepEqual(statsOf('h-keep1'), { searches: 0, errors: 0, lastSearch: 0, lastError: 0 })
+  assert.deepEqual(response.payload.providers[0].stats, { searches: 0, errors: 0, lastSearch: 0, lastError: 0 })
+})

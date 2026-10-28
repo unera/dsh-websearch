@@ -196,6 +196,39 @@ export function unwrapProviders(value) {
 /** Namespace this plugin's entry registers. */
 export const SETTINGS_NAMESPACE = 'dsh-websearch'
 export const ROUTE_PREFIX = '/__ws'
+/** Id this plugin registers its aggregator under and the value `web.searchProvider` names. */
+export const SEARCH_PROVIDER_ID = 'dsh-websearch'
+/** The `web` seam's namespace, whose `searchProvider` field selects the active provider. */
+export const WEB_NAMESPACE = 'web'
+
+/**
+ * Per-provider usage counters, keyed by provider id so they survive config edits,
+ * and kept in memory: a restart starts every provider back at zero.
+ */
+export const providerStats = new Map()
+
+/** Counters for one provider, zeroed when it has never run. */
+export function statsOf(id) {
+  return providerStats.get(id) ?? { searches: 0, errors: 0, lastSearch: 0, lastError: 0 }
+}
+
+/** Wrap one provider so every completed search and every failure is counted. */
+export function countProvider(provider) {
+  return {
+    ...provider,
+    async search(request, signal) {
+      const before = statsOf(provider.id)
+      try {
+        const result = await provider.search(request, signal)
+        providerStats.set(provider.id, { ...before, searches: before.searches + 1, lastSearch: Date.now() })
+        return result
+      } catch (error) {
+        providerStats.set(provider.id, { ...before, errors: before.errors + 1, lastError: Date.now() })
+        throw error
+      }
+    },
+  }
+}
 
 const PROVIDER_ID = /^[A-Za-z][A-Za-z0-9_-]{5,7}$/
 /** What the page may see of one provider: never the key itself. */
@@ -207,6 +240,7 @@ function publicProvider(provider, index) {
     desc: provider.desc ?? '',
     enabled: provider.enabled !== false,
     keySet: String(provider.apiKey ?? '').trim() !== '',
+    stats: statsOf(provider.id),
   }
 }
 
@@ -228,6 +262,12 @@ export function createProviderHandler(settings) {
     return Array.isArray(value?.providers) ? value.providers.map(provider => ({ ...provider })) : []
   }
   const write = providers => settings.update(SETTINGS_NAMESPACE, { providers })
+  /** The provider id the `web` seam currently selects, if any. */
+  const selectedSearchProvider = () => {
+    const descriptor = settings.describe().find(entry => String(entry.ns) === WEB_NAMESPACE)
+    const value = descriptor?.value
+    return typeof value?.searchProvider === 'string' ? value.searchProvider : ''
+  }
 
   const json = (response, status, body) => {
     const text = JSON.stringify(body)
@@ -266,7 +306,11 @@ export function createProviderHandler(settings) {
 
       if (request.method === 'GET' && path === '/state') {
         const providers = read()
-        return json(response, 200, { providers: providers.map(publicProvider) })
+        return json(response, 200, {
+          providers: providers.map(publicProvider),
+          searchProvider: selectedSearchProvider(),
+          providerId: SEARCH_PROVIDER_ID,
+        })
       }
       if (request.method !== 'POST') return json(response, 405, { error: 'method not allowed' })
 
@@ -302,6 +346,11 @@ export function createProviderHandler(settings) {
         const target = index + Number(body.delta ?? 0)
         if (target < 0 || target >= providers.length) return json(response, 400, { error: 'move is out of range' })
         ;[providers[index], providers[target]] = [providers[target], providers[index]]
+      } else if (action === 'reset') {
+        providerStats.delete(String(providers[indexOf(providers, body.index)]?.id ?? ''))
+      } else if (action === 'select') {
+        // The `web` seam never adopts a provider on its own; the page points it here.
+        await settings.update(WEB_NAMESPACE, { searchProvider: SEARCH_PROVIDER_ID })
       } else if (action === 'toggle') {
         const index = indexOf(providers, body.index)
         providers[index] = { ...providers[index], enabled: providers[index].enabled === false }
@@ -309,9 +358,13 @@ export function createProviderHandler(settings) {
         return json(response, 400, { error: `unknown action ${JSON.stringify(action)}` })
       }
 
-      await write(providers)
+      if (action !== 'select') await write(providers)
       const after = read()
-      return json(response, 200, { providers: after.map(publicProvider) })
+      return json(response, 200, {
+        providers: after.map(publicProvider),
+        searchProvider: selectedSearchProvider(),
+        providerId: SEARCH_PROVIDER_ID,
+      })
     } catch (error) {
       return json(response, 400, { error: String(error?.message ?? error) })
     }
@@ -345,7 +398,7 @@ export function apply(ctx, config = {}) {
   })
   ctx.inject(['web'], scoped => {
     const credentials = scoped.get('credentials')
-    const providers = providersConfig.map(provider => createExaProvider(provider, credentials))
+    const providers = providersConfig.map(provider => countProvider(createExaProvider(provider, credentials)))
     if (providers.length === 0) return undefined
     return scoped.web.registerSearchProvider(createSearchAggregator(providers))
   })

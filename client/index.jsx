@@ -65,6 +65,9 @@ async function call(path, body) {
 
 const emptyEntry = { desc: '', apiKey: '', enabled: true }
 
+/** Format one counter timestamp for a tooltip; a zero means "never happened". */
+const when = ms => (typeof ms === 'number' && ms > 0 ? new Date(ms).toLocaleString() : 'never')
+
 export function WebSearchPage() {
   const [providers, setProviders] = useState([])
   const [selected, setSelected] = useState(null)
@@ -72,8 +75,12 @@ export function WebSearchPage() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
+  const [active, setActive] = useState('')
 
-  const apply = payload => { if (Array.isArray(payload?.providers)) setProviders(payload.providers) }
+  const apply = payload => {
+    if (Array.isArray(payload?.providers)) setProviders(payload.providers)
+    if (typeof payload?.searchProvider === 'string') setActive(payload.searchProvider)
+  }
 
   const run = async (action, work) => {
     setBusy(true); setError('')
@@ -129,6 +136,19 @@ export function WebSearchPage() {
   return jsxs('section', { style: styles.page, children: [
     jsx('h2', { style: styles.heading, children: 'Web search' }),
     jsx('p', { style: styles.hint, children: 'Exa providers used for web search. Description is optional; a provider can be enabled once its API key is stored.' }),
+    jsxs('div', { style: styles.row, children: [
+      jsx('span', {
+        style: styles.activeLabel,
+        children: active === 'dsh-websearch'
+          ? 'This aggregator is the active search provider.'
+          : `Active search provider: ${active === '' ? 'none' : active}`,
+      }),
+      active !== 'dsh-websearch' && jsx('button', {
+        style: styles.button, disabled: busy,
+        onClick: () => run('select', () => call('/providers', { action: 'select' })),
+        children: 'Use for search',
+      }),
+    ] }),
 
     jsxs('div', { style: styles.addCard, children: [
       jsx('textarea', {
@@ -179,6 +199,19 @@ export function WebSearchPage() {
           jsx('span', { style: styles.id, children: provider.id || '—' }),
           icon !== null && jsx('img', { src: icon, alt: typeLabel(provider.type), width: 13, height: 16, style: { flex: '0 0 auto', opacity: on ? 1 : 0.35 } }),
           provider.desc !== '' && jsx('span', { style: styles.desc, children: provider.desc }),
+          jsxs('span', {
+            style: styles.counters,
+            title: `last search: ${when(provider.stats?.lastSearch)}\nlast error: ${when(provider.stats?.lastError)}`,
+            children: [
+              jsx('span', { style: styles.green, children: provider.stats?.searches ?? 0 }),
+              jsx('span', { style: styles.slash, children: '/' }),
+              jsx('span', { style: styles.red, children: provider.stats?.errors ?? 0 }),
+            ],
+          }),
+          jsx('button', {
+            className: 'dws-icon', disabled: busy, title: 'reset',
+            onClick: act({ action: 'reset', index }), children: '⟲',
+          }),
           jsxs('span', { style: styles.actions, children: [
             jsx('button', { className: 'dws-icon', disabled: busy, title: 'Delete', onClick: act({ action: 'delete', index }), children: '×' }),
             jsx('button', { className: 'dws-icon', disabled: busy || index === 0, title: 'Move up', onClick: act({ action: 'move', index, delta: -1 }), children: '↑' }),
@@ -205,6 +238,11 @@ const styles = {
   id: { flex: '0 0 auto', fontFamily: 'monospace', fontSize: 12, opacity: 0.75 },
   desc: { flex: '1 1 auto', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
   actions: { display: 'flex', flex: '0 0 auto', gap: 4 },
+  counters: { flex: '0 0 auto', fontFamily: 'monospace', fontSize: 12, whiteSpace: 'nowrap' },
+  green: { color: '#3fb950' },
+  red: { color: '#f85149' },
+  slash: { opacity: 0.5 },
+  activeLabel: { fontSize: 12, opacity: 0.75 },
   row: { alignItems: 'center', display: 'flex', gap: 8 },
   button: {
     padding: '7px 12px', borderRadius: 6, border: '1px solid rgba(127,127,127,.35)',
