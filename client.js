@@ -45,7 +45,7 @@ var en = {
   "page.notRegistered": "not registered: ",
   "page.unknown": "unknown",
   "form.type": "Provider",
-  "form.typeNone": "\u2014 choose a provider \u2014",
+  "form.typeNone": "none",
   "form.typeLocked": "The provider type cannot be changed \u2014 add a new entry instead",
   "form.chooseHint": "Choose a web search provider.",
   "form.desc": "Description",
@@ -82,7 +82,7 @@ var ru = {
   "page.notRegistered": "\u043D\u0435 \u0437\u0430\u0440\u0435\u0433\u0438\u0441\u0442\u0440\u0438\u0440\u043E\u0432\u0430\u043D: ",
   "page.unknown": "\u043D\u0435\u0438\u0437\u0432\u0435\u0441\u0442\u043D\u043E",
   "form.type": "\u041F\u0440\u043E\u0432\u0430\u0439\u0434\u0435\u0440",
-  "form.typeNone": "\u2014 \u0432\u044B\u0431\u0435\u0440\u0438\u0442\u0435 \u043F\u0440\u043E\u0432\u0430\u0439\u0434\u0435\u0440\u0430 \u2014",
+  "form.typeNone": "\u043D\u0435\u0442",
   "form.typeLocked": "\u0422\u0438\u043F \u043F\u0440\u043E\u0432\u0430\u0439\u0434\u0435\u0440\u0430 \u043D\u0435\u043B\u044C\u0437\u044F \u0438\u0437\u043C\u0435\u043D\u0438\u0442\u044C \u2014 \u0434\u043E\u0431\u0430\u0432\u044C\u0442\u0435 \u043D\u043E\u0432\u0443\u044E \u0437\u0430\u043F\u0438\u0441\u044C",
   "form.chooseHint": "\u0412\u044B\u0431\u0435\u0440\u0438\u0442\u0435 \u043F\u0440\u043E\u0432\u0430\u0439\u0434\u0435\u0440\u0430 \u043F\u043E\u0438\u0441\u043A\u0430 \u0432 \u0438\u043D\u0442\u0435\u0440\u043D\u0435\u0442\u0435.",
   "form.desc": "\u041E\u043F\u0438\u0441\u0430\u043D\u0438\u0435",
@@ -119,7 +119,7 @@ var zh = {
   "page.notRegistered": "\u672A\u6CE8\u518C\uFF1A",
   "page.unknown": "\u672A\u77E5",
   "form.type": "\u63D0\u4F9B\u65B9",
-  "form.typeNone": "\u2014 \u8BF7\u9009\u62E9\u63D0\u4F9B\u65B9 \u2014",
+  "form.typeNone": "\u65E0",
   "form.typeLocked": "\u63D0\u4F9B\u65B9\u7C7B\u578B\u4E0D\u53EF\u4FEE\u6539 \u2014 \u8BF7\u65B0\u589E\u4E00\u6761\u8BB0\u5F55",
   "form.chooseHint": "\u8BF7\u9009\u62E9\u7F51\u7EDC\u641C\u7D22\u7684\u63D0\u4F9B\u65B9\u3002",
   "form.desc": "\u63CF\u8FF0",
@@ -365,12 +365,15 @@ function WebSearchPage(props) {
           disabled: busy,
           onChange: (e) => setDraft({ ...draft, desc: e.target.value })
         }) : (0, import_jsx_runtime.jsx)("span", { className: "dws-note", children: t("form.chooseHint") }),
-        showingForm && (0, import_jsx_runtime.jsx)("input", {
-          className: "dws-field dws-grow",
-          type: "password",
+        showingForm && (0, import_jsx_runtime.jsx)("textarea", {
+          // A textarea cannot be autofilled, so Firefox's password manager stops
+          // offering to save a search key. It is not masked: a textarea cannot be,
+          // and the field is write-only — the stored value never comes back.
+          className: "dws-field dws-grow dws-one-line",
+          rows: 1,
           value: draft.apiKey,
-          name: "dsh-websearch-key",
-          autoComplete: "new-password",
+          autoComplete: "off",
+          spellCheck: false,
           disabled: busy,
           placeholder: hasStoredKey ? t("form.secretStored") : t("form.secretNew"),
           onChange: (e) => setDraft({ ...draft, apiKey: e.target.value })
@@ -391,7 +394,7 @@ function WebSearchPage(props) {
           className: "dws-button",
           disabled: !canSubmit,
           onClick: submit,
-          children: editing ? `${t("form.save")} ${typeLabel(formType)}` : t("form.add")
+          children: editing ? t("form.save") : t("form.add")
         }),
         (0, import_jsx_runtime.jsx)("button", {
           className: "dws-button",

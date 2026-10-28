@@ -263,9 +263,12 @@ export function WebSearchPage(props) {
             onChange: e => setDraft({ ...draft, desc: e.target.value }),
           })
           : jsx('span', { className: 'dws-note', children: t('form.chooseHint') }),
-        showingForm && jsx('input', {
-          className: 'dws-field dws-grow', type: 'password', value: draft.apiKey, name: 'dsh-websearch-key',
-          autoComplete: 'new-password', disabled: busy,
+        showingForm && jsx('textarea', {
+          // A textarea cannot be autofilled, so Firefox's password manager stops
+          // offering to save a search key. It is not masked: a textarea cannot be,
+          // and the field is write-only — the stored value never comes back.
+          className: 'dws-field dws-grow dws-one-line', rows: 1, value: draft.apiKey,
+          autoComplete: 'off', spellCheck: false, disabled: busy,
           placeholder: hasStoredKey ? t('form.secretStored') : t('form.secretNew'),
           onChange: e => setDraft({ ...draft, apiKey: e.target.value }),
         }),
@@ -281,7 +284,7 @@ export function WebSearchPage(props) {
         ] }),
         jsx('button', {
           className: 'dws-button', disabled: !canSubmit, onClick: submit,
-          children: editing ? `${t('form.save')} ${typeLabel(formType)}` : t('form.add'),
+          children: editing ? t('form.save') : t('form.add'),
         }),
         jsx('button', {
           className: 'dws-button', disabled: busy, onClick: reset, children: t('form.cancel'),
