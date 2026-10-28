@@ -31,7 +31,7 @@ test('the three languages are actually different where it matters', () => {
 
 test('the namespace and the type table are stable', () => {
   assert.equal(NS, 'dsh-websearch')
-  assert.deepEqual([...TYPE_OPTIONS], ['exa', 'deepseek', 'openai', 'jina', 'perplexity', 'tavily', 'firecrawl', 'brave'])
+  assert.deepEqual([...TYPE_OPTIONS], ['exa', 'deepseek', 'openai', 'jina', 'perplexity', 'tavily', 'firecrawl', 'brave', 'serper'])
   assert.equal(TYPE_LABELS.exa, 'Exa')
   assert.equal(TYPE_LABELS.deepseek, 'DeepSeek')
   assert.equal(TYPE_LABELS.openai, 'OpenAI')
@@ -40,4 +40,5 @@ test('the namespace and the type table are stable', () => {
   assert.equal(TYPE_LABELS.tavily, 'Tavily')
   assert.equal(TYPE_LABELS.firecrawl, 'Firecrawl')
   assert.equal(TYPE_LABELS.brave, 'Brave')
+  assert.equal(TYPE_LABELS.serper, 'Serper')
 })

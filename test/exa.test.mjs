@@ -870,3 +870,33 @@ test('a self-test half is bounded to thirty seconds', async () => {
   assert.equal(TEST_TIMEOUT_MS, 30_000)
   assert.match(TEST_FETCH_URL, /^https:\/\//)
 })
+
+test('Serper searches Google through one POST with the key in a header', async () => {
+  const { createProvider, mapSerperResponse } = await import('../index.mjs')
+  const calls = []
+  const provider = createProvider({ id: 'h-srp01', type: 'serper', apiKey: 'sr-1', enabled: true }, undefined, {
+    fetchFn: async (url, init) => {
+      calls.push({ url, init })
+      return { ok: true, status: 200, json: async () => ({ organic: [
+        { title: 'A', link: 'https://a.example', snippet: 'about   a', date: '2 days ago' },
+        { title: 'dup', link: 'https://a.example', snippet: 'x' },
+        { title: 'B', link: 'https://b.example' },
+      ] }) }
+    },
+  })
+  assert.equal(provider.type, 'serper')
+  assert.equal(typeof provider.fetch, 'undefined')
+
+  const result = await provider.search({ query: 'курс' })
+  assert.deepEqual(result.sources, [
+    { url: 'https://a.example', title: 'A', snippet: 'about a', publishedAt: '2 days ago' },
+    { url: 'https://b.example', title: 'B' },
+  ])
+  const [{ url, init }] = calls
+  assert.equal(url, 'https://google.serper.dev/search')
+  assert.equal(init.headers['x-api-key'], 'sr-1')
+  assert.equal(JSON.parse(init.body).num, 5)
+  assert.equal(JSON.parse(init.body).q, 'курс')
+
+  assert.throws(() => mapSerperResponse({ credits: 1 }), /no organic results/)
+})

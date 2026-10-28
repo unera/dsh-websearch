@@ -60,6 +60,13 @@ export const FIRECRAWL_DEFAULT_LIMIT = 5
 export const BRAVE_SEARCH_URL = 'https://api.search.brave.com/res/v1/web/search'
 /** Results requested per search; Brave caps `count` at 20. */
 export const BRAVE_DEFAULT_COUNT = 5
+/**
+ * Serper provides Google results over one POST; the key travels in `X-API-KEY`
+ * and organic results carry `title`, `link` and `snippet`.
+ */
+export const SERPER_SEARCH_URL = 'https://google.serper.dev/search'
+/** Results requested per search. */
+export const SERPER_DEFAULT_COUNT = 5
 export const INTERNAL_PROVIDER_ID = 'internal'
 
 const ProviderConfigSchema = z.object({
@@ -1120,6 +1127,101 @@ export function createBraveProvider(config, credentials, { fetchFn = fetch } = {
   }
 }
 
+
+/**
+ * Map a Serper answer onto `WebSearchResult`.
+ * @param payload - Parsed `/search` body.
+ * @returns Sources in provider order, `organic[].link` as the URL and `snippet` as text.
+ * @throws {@link WebError} when no organic results array is present.
+ */
+export function mapSerperResponse(payload) {
+  if (payload === null || typeof payload !== 'object' || !Array.isArray(payload.organic)) {
+    throw new WebError('Serper returned no organic results', 'WEB_PROVIDER_ERROR')
+  }
+  const sources = []
+  const seen = new Set()
+  for (const item of payload.organic) {
+    if (item === null || typeof item !== 'object') continue
+    if (typeof item.link !== 'string' || item.link === '' || seen.has(item.link)) continue
+    seen.add(item.link)
+    const snippet = String(item.snippet ?? '').replace(/\s+/g, ' ').trim()
+    sources.push({
+      url: item.link,
+      ...typeof item.title === 'string' && item.title !== '' ? { title: item.title } : {},
+      ...snippet === '' ? {} : { snippet },
+      ...typeof item.date === 'string' && item.date !== '' ? { publishedAt: item.date } : {},
+    })
+  }
+  return { sources, truncated: false }
+}
+
+/**
+ * Serper: Google's index through one POST, key in `X-API-KEY`. Search only.
+ *
+ * @param config - One provider entry.
+ * @param credentials - Optional credentials seam used to resolve the key reference.
+ * @param options.fetchFn - Transport, replaceable in tests.
+ */
+export function createSerperProvider(config, credentials, { fetchFn = fetch } = {}) {
+  const id = normalizeProviderId(config.id)
+  const ref = credentialRef(config.credentialRef ?? makeCredentialRef('serper', id))
+  const endpoint = String(config.baseUrl ?? '').trim() || SERPER_SEARCH_URL
+  const keyInConfig = String(config.apiKey ?? '').trim() !== ''
+  const keyInEnv = String(process.env[config.credentialRef ?? ''] ?? '').trim() !== ''
+  return {
+    id,
+    type: 'serper',
+    desc: config.desc ?? '',
+    credentialRef: config.credentialRef ?? makeCredentialRef('serper', id),
+    enabled: config.enabled !== false,
+    throttle: config.throttle ?? undefined,
+    config: config.config ?? {},
+    available: () => keyInConfig || Boolean(credentials) || keyInEnv,
+    async search(request, signal) {
+      const query = String(request.query ?? '').trim()
+      if (!query) return { sources: [], truncated: false }
+      const resolved = await credentials?.resolve(ref)
+      const apiKey = String(config.apiKey ?? '').trim()
+        || String(resolved?.value ?? '').trim()
+        || String(process.env[ref] ?? '').trim()
+      if (!apiKey) {
+        throw new WebError(`Serper search has no API key for "${ref}"`, 'WEB_PROVIDER_CREDENTIAL_MISSING')
+      }
+      let response
+      try {
+        response = await fetchFn(endpoint, {
+          method: 'POST',
+          redirect: 'error',
+          headers: {
+            'x-api-key': apiKey,
+            'content-type': 'application/json',
+            accept: 'application/json',
+          },
+          body: JSON.stringify({
+            q: query,
+            num: Number(request.maxResults) > 0 ? Number(request.maxResults) : SERPER_DEFAULT_COUNT,
+          }),
+          signal,
+        })
+      } catch (error) {
+        if (signal?.aborted) throw new WebError('Serper search aborted', 'WEB_ABORTED', { cause: error })
+        throw new WebError(`Serper search request failed: ${String(error)}`, 'WEB_PROVIDER_ERROR', { cause: error })
+      }
+      if (response.status === 401 || response.status === 403) throw new WebError('Serper rejected the configured API key.', 'WEB_PROVIDER_CREDENTIAL_INVALID')
+      if (response.status === 429) throw new WebError('Serper search was rate limited.', 'WEB_PROVIDER_RATE_LIMITED')
+      if (!response.ok) {
+        const detail = (await response.text().catch(() => '')).replace(/\s+/g, ' ').slice(0, 240)
+        throw new WebError(`Serper search failed (${response.status})${detail ? `: ${detail}` : '.'}`, 'WEB_PROVIDER_ERROR')
+      }
+      let payload
+      try { payload = await response.json() } catch (error) {
+        throw new WebError(`Serper returned malformed JSON: ${String(error)}`, 'WEB_PROVIDER_ERROR', { cause: error })
+      }
+      return mapSerperResponse(payload)
+    },
+  }
+}
+
 /** Build the provider a config entry names; the type decides the wire protocol. */
 export function createProvider(config, credentials, options) {
   const type = config.type ?? 'exa'
@@ -1137,7 +1239,9 @@ export function createProvider(config, credentials, options) {
               ? createFirecrawlProvider(config, credentials, options)
               : type === 'brave'
                 ? createBraveProvider(config, credentials, options)
-                : createExaProvider(config, credentials, options)
+                : type === 'serper'
+                  ? createSerperProvider(config, credentials, options)
+                  : createExaProvider(config, credentials, options)
   // The aggregators read these: a type may be able to do something the entry is
   // configured not to use, which is how one provider searches while the next
   // one, further down the list, does the page retrieval.
@@ -1281,7 +1385,7 @@ export const SEARCH_PROVIDER_ID = 'dsh-websearch'
  * Provider types this build can talk to. The form's select offers exactly these,
  * and `/providers` refuses anything else instead of storing a type it cannot run.
  */
-export const PROVIDER_TYPES = Object.freeze(['exa', 'deepseek', 'openai', 'jina', 'perplexity', 'tavily', 'firecrawl', 'brave'])
+export const PROVIDER_TYPES = Object.freeze(['exa', 'deepseek', 'openai', 'jina', 'perplexity', 'tavily', 'firecrawl', 'brave', 'serper'])
 
 /**
  * What each provider type can do. Search and page retrieval are separate
@@ -1299,6 +1403,7 @@ export const PROVIDER_CAPABILITIES = Object.freeze({
   tavily: Object.freeze({ search: true, fetch: true }),
   firecrawl: Object.freeze({ search: true, fetch: true }),
   brave: Object.freeze({ search: true, fetch: false }),
+  serper: Object.freeze({ search: true, fetch: false }),
 })
 /** The `web` seam's namespace, whose `searchProvider` field selects the active provider. */
 export const WEB_NAMESPACE = 'web'

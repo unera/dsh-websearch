@@ -71,7 +71,6 @@ var en = {
   "list.delete": "Delete",
   "list.deleteConfirm": "Delete the '{0}' provider (id {1})?",
   "list.reset": "reset",
-  "test.run": "Test all",
   "test.one": "Test this provider",
   "test.off": "Nothing to test: the provider is off or has no allowed capability",
   "test.running": "Testing\u2026",
@@ -136,7 +135,6 @@ var ru = {
   "list.delete": "\u0423\u0434\u0430\u043B\u0438\u0442\u044C",
   "list.deleteConfirm": "\u0412\u044B \u0443\u0432\u0435\u0440\u0435\u043D\u044B, \u0447\u0442\u043E \u0445\u043E\u0442\u0438\u0442\u0435 \u0443\u0434\u0430\u043B\u0438\u0442\u044C \xAB{0}\xBB \u0441 id={1}?",
   "list.reset": "\u0441\u0431\u0440\u043E\u0441\u0438\u0442\u044C",
-  "test.run": "\u043F\u0440\u043E\u0442\u0435\u0441\u0442\u0438\u0440\u043E\u0432\u0430\u0442\u044C \u0432\u0441\u0451",
   "test.one": "\u043F\u0440\u043E\u0432\u0435\u0440\u0438\u0442\u044C \u044D\u0442\u043E\u0433\u043E \u043F\u0440\u043E\u0432\u0430\u0439\u0434\u0435\u0440\u0430",
   "test.off": "\u041F\u0440\u043E\u0432\u0435\u0440\u044F\u0442\u044C \u043D\u0435\u0447\u0435\u0433\u043E: \u043F\u0440\u043E\u0432\u0430\u0439\u0434\u0435\u0440 \u0432\u044B\u043A\u043B\u044E\u0447\u0435\u043D \u0438\u043B\u0438 \u043D\u0435 \u0440\u0430\u0437\u0440\u0435\u0448\u0435\u043D\u043E \u043D\u0438 \u043F\u043E\u0438\u0441\u043A\u0430, \u043D\u0438 \u0441\u043A\u0430\u0447\u0438\u0432\u0430\u043D\u0438\u044F",
   "test.running": "\u041F\u0440\u043E\u0432\u0435\u0440\u044F\u044E\u2026",
@@ -201,7 +199,6 @@ var zh = {
   "list.delete": "\u5220\u9664",
   "list.deleteConfirm": "\u786E\u5B9A\u8981\u5220\u9664\u201C{0}\u201D\uFF08id {1}\uFF09\u5417\uFF1F",
   "list.reset": "\u91CD\u7F6E",
-  "test.run": "\u6D4B\u8BD5\u5168\u90E8",
   "test.one": "\u6D4B\u8BD5\u6B64\u63D0\u4F9B\u65B9",
   "test.off": "\u65E0\u53EF\u6D4B\u8BD5\uFF1A\u63D0\u4F9B\u65B9\u5DF2\u5173\u95ED\u6216\u672A\u5141\u8BB8\u4EFB\u4F55\u80FD\u529B",
   "test.running": "\u6D4B\u8BD5\u4E2D\u2026",
@@ -230,8 +227,8 @@ var zh = {
   "common.never": "\u4ECE\u672A"
 };
 var DICTIONARIES = { en, ru, zh };
-var TYPE_LABELS = { exa: "Exa", deepseek: "DeepSeek", openai: "OpenAI", jina: "Jina", perplexity: "Perplexity", tavily: "Tavily", firecrawl: "Firecrawl", brave: "Brave" };
-var TYPE_OPTIONS = ["exa", "deepseek", "openai", "jina", "perplexity", "tavily", "firecrawl", "brave"];
+var TYPE_LABELS = { exa: "Exa", deepseek: "DeepSeek", openai: "OpenAI", jina: "Jina", perplexity: "Perplexity", tavily: "Tavily", firecrawl: "Firecrawl", brave: "Brave", serper: "Serper" };
+var TYPE_OPTIONS = ["exa", "deepseek", "openai", "jina", "perplexity", "tavily", "firecrawl", "brave", "serper"];
 
 // client/index.jsx
 var SECTION_ID = "websearch";
@@ -274,6 +271,7 @@ var SectionBoundary = class extends import_react.Component {
     });
   }
 };
+var SERPER_ICON = "data:image/png;base64,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";
 var ICONS = {
   exa: EXA_ICON,
   deepseek: DEEPSEEK_ICON,
@@ -282,7 +280,8 @@ var ICONS = {
   perplexity: PERPLEXITY_ICON,
   tavily: TAVILY_ICON,
   firecrawl: FIRECRAWL_ICON,
-  brave: BRAVE_ICON
+  brave: BRAVE_ICON,
+  serper: SERPER_ICON
 };
 var typeLabel = (type) => TYPE_LABELS[type] ?? String(type ?? "");
 var PROVIDER_CAPS = {
@@ -293,7 +292,8 @@ var PROVIDER_CAPS = {
   perplexity: { search: true, fetch: false },
   tavily: { search: true, fetch: true },
   firecrawl: { search: true, fetch: true },
-  brave: { search: true, fetch: false }
+  brave: { search: true, fetch: false },
+  serper: { search: true, fetch: false }
 };
 var capsKey = (capabilities, enabled) => {
   const search = capabilities?.search !== false;
