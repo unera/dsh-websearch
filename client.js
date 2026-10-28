@@ -38,7 +38,7 @@ var en = {
   "nav.title": "Web search",
   "help.list": "Add the providers you need to the list below. A search walks them from top to bottom until they run out or a result is found.",
   "help.registration": "Registering makes this aggregator the active provider. If something here breaks, unregister: DSH falls back to its built-in providers and nothing is deleted.",
-  "help.restart": "Either change applies after a restart.",
+  "help.restart": "Restart DeepSeek Harness for this to take effect.",
   "page.register": "Register",
   "page.unregister": "Unregister",
   "page.activeSelf": "This aggregator is the active search provider.",
@@ -106,7 +106,7 @@ var ru = {
   "nav.title": "\u0412\u0435\u0431-\u043F\u043E\u0438\u0441\u043A",
   "help.list": "\u0414\u043E\u0431\u0430\u0432\u044C\u0442\u0435 \u043D\u0443\u0436\u043D\u043E\u0433\u043E \u043F\u0440\u043E\u0432\u0430\u0439\u0434\u0435\u0440\u0430 \u0432 \u0441\u043F\u0438\u0441\u043E\u043A \u043D\u0438\u0436\u0435. \u041F\u0440\u0438 \u0440\u0430\u0431\u043E\u0442\u0435 \u043F\u043E\u0438\u0441\u043A \u0431\u0443\u0434\u0435\u0442 \u043F\u0435\u0440\u0435\u0431\u0438\u0440\u0430\u0442\u044C \u0438\u0445 \u0441\u0432\u0435\u0440\u0445\u0443 \u0432\u043D\u0438\u0437, \u043F\u043E\u043A\u0430 \u043E\u043D\u0438 \u043D\u0435 \u0438\u0441\u0447\u0435\u0440\u043F\u0430\u044E\u0442\u0441\u044F \u0438\u043B\u0438 \u043D\u0435 \u0431\u0443\u0434\u0435\u0442 \u0434\u043E\u0441\u0442\u0438\u0433\u043D\u0443\u0442 \u0440\u0435\u0437\u0443\u043B\u044C\u0442\u0430\u0442.",
   "help.registration": "\u0420\u0435\u0433\u0438\u0441\u0442\u0440\u0430\u0446\u0438\u044F \u0434\u0435\u043B\u0430\u0435\u0442 \u0430\u0433\u0440\u0435\u0433\u0430\u0442\u043E\u0440 \u0430\u043A\u0442\u0438\u0432\u043D\u044B\u043C. \u0415\u0441\u043B\u0438 \u0437\u0434\u0435\u0441\u044C \u0447\u0442\u043E-\u0442\u043E \u0441\u043B\u043E\u043C\u0430\u0435\u0442\u0441\u044F \u2014 \u043E\u0442\u0437\u043E\u0432\u0438\u0442\u0435 \u0440\u0435\u0433\u0438\u0441\u0442\u0440\u0430\u0446\u0438\u044E: DSH \u0432\u0435\u0440\u043D\u0451\u0442\u0441\u044F \u043A \u0432\u0441\u0442\u0440\u043E\u0435\u043D\u043D\u044B\u043C \u043F\u0440\u043E\u0432\u0430\u0439\u0434\u0435\u0440\u0430\u043C, \u043D\u0438\u0447\u0435\u0433\u043E \u0443\u0434\u0430\u043B\u044F\u0442\u044C \u043D\u0435 \u043D\u0443\u0436\u043D\u043E.",
-  "help.restart": "\u041B\u044E\u0431\u043E\u0435 \u0438\u0437 \u0438\u0437\u043C\u0435\u043D\u0435\u043D\u0438\u0439 \u043F\u0440\u0438\u043C\u0435\u043D\u044F\u0435\u0442\u0441\u044F \u043F\u043E\u0441\u043B\u0435 \u043F\u0435\u0440\u0435\u0437\u0430\u043F\u0443\u0441\u043A\u0430.",
+  "help.restart": "\u0427\u0442\u043E\u0431\u044B \u044D\u0442\u043E \u043F\u0440\u0438\u043C\u0435\u043D\u0438\u043B\u043E\u0441\u044C, \u043F\u0435\u0440\u0435\u0437\u0430\u043F\u0443\u0441\u0442\u0438\u0442\u0435 DeepSeek Harness.",
   "page.register": "\u0417\u0430\u0440\u0435\u0433\u0438\u0441\u0442\u0440\u0438\u0440\u043E\u0432\u0430\u0442\u044C",
   "page.unregister": "\u041E\u0442\u043E\u0437\u0432\u0430\u0442\u044C \u0440\u0435\u0433\u0438\u0441\u0442\u0440\u0430\u0446\u0438\u044E",
   "page.activeSelf": "\u042D\u0442\u043E\u0442 \u0430\u0433\u0440\u0435\u0433\u0430\u0442\u043E\u0440 \u2014 \u0430\u043A\u0442\u0438\u0432\u043D\u044B\u0439 \u043F\u0440\u043E\u0432\u0430\u0439\u0434\u0435\u0440 \u043F\u043E\u0438\u0441\u043A\u0430.",
@@ -174,7 +174,7 @@ var zh = {
   "nav.title": "\u7F51\u7EDC\u641C\u7D22",
   "help.list": "\u5C06\u9700\u8981\u7684\u63D0\u4F9B\u65B9\u52A0\u5165\u4E0B\u9762\u7684\u5217\u8868\u3002\u641C\u7D22\u65F6\u6309\u4ECE\u4E0A\u5230\u4E0B\u7684\u987A\u5E8F\u4F9D\u6B21\u5C1D\u8BD5\uFF0C\u76F4\u5230\u7528\u5C3D\u6216\u5F97\u5230\u7ED3\u679C\u3002",
   "help.registration": "\u6CE8\u518C\u540E\u672C\u805A\u5408\u5668\u6210\u4E3A\u6D3B\u52A8\u63D0\u4F9B\u65B9\u3002\u82E5\u6B64\u5904\u51FA\u95EE\u9898\uFF0C\u8BF7\u64A4\u9500\u6CE8\u518C\uFF1ADSH \u4F1A\u56DE\u9000\u5230\u5185\u7F6E\u63D0\u4F9B\u65B9\uFF0C\u4E0D\u4F1A\u5220\u9664\u4EFB\u4F55\u5185\u5BB9\u3002",
-  "help.restart": "\u4EFB\u4E00\u66F4\u6539\u90FD\u9700\u91CD\u542F\u540E\u751F\u6548\u3002",
+  "help.restart": "\u8BF7\u91CD\u542F DeepSeek Harness \u4F7F\u5176\u751F\u6548\u3002",
   "page.register": "\u6CE8\u518C",
   "page.unregister": "\u64A4\u9500\u6CE8\u518C",
   "page.activeSelf": "\u6B64\u805A\u5408\u5668\u662F\u5F53\u524D\u751F\u6548\u7684\u641C\u7D22\u63D0\u4F9B\u65B9\u3002",
@@ -427,6 +427,7 @@ function WebSearchPageInner(props) {
   const [providers, setProviders] = (0, import_react.useState)([]);
   const [selected, setSelected] = (0, import_react.useState)(null);
   const [pickerOpen, setPickerOpen] = (0, import_react.useState)(false);
+  const [restartNeeded, setRestartNeeded] = (0, import_react.useState)(false);
   const [tests, setTests] = (0, import_react.useState)({});
   const [draft, setDraft] = (0, import_react.useState)(emptyDraft);
   const [busy, setBusy] = (0, import_react.useState)(false);
@@ -632,17 +633,17 @@ function WebSearchPageInner(props) {
             active === "dsh-websearch" ? (0, import_jsx_runtime.jsx)("button", {
               className: "dws-button",
               disabled: busy,
-              onClick: () => run(() => call("/providers", { action: "unregister" })),
+              onClick: () => run(() => call("/providers", { action: "unregister" })).then(() => setRestartNeeded(true)),
               children: t("page.unregister")
             }) : (0, import_jsx_runtime.jsx)("button", {
               className: "dws-button",
               disabled: busy,
-              onClick: () => run(() => call("/providers", { action: "select" })),
+              onClick: () => run(() => call("/providers", { action: "select" })).then(() => setRestartNeeded(true)),
               children: t("page.register")
             })
           ] }),
           (0, import_jsx_runtime.jsx)("p", { style: styles.helpText, children: t("help.registration") }),
-          (0, import_jsx_runtime.jsx)("p", { style: styles.helpStrong, children: t("help.restart") })
+          restartNeeded && (0, import_jsx_runtime.jsx)("p", { style: styles.restartWarning, children: t("help.restart") })
         ]
       }) })
     ] }),
@@ -854,6 +855,7 @@ var styles = {
   heading: { margin: 0, fontSize: 20, fontWeight: 600 },
   helpText: { fontSize: 11, lineHeight: 1.45, margin: 0, opacity: 0.7 },
   helpStrong: { fontSize: 11, fontWeight: 700, lineHeight: 1.45, margin: 0 },
+  restartWarning: { color: "#f85149", fontSize: 11, fontWeight: 700, lineHeight: 1.45, margin: 0 },
   helpTextBright: { fontSize: 11, lineHeight: 1.45, margin: 0, opacity: 1 },
   statusRow: { alignItems: "center", display: "flex", flexWrap: "wrap", gap: 8 },
   hint: { margin: 0, opacity: 0.7, fontSize: 13 },

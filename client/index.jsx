@@ -260,6 +260,8 @@ function WebSearchPageInner(props) {
   const [providers, setProviders] = useState([])
   const [selected, setSelected] = useState(null)
   const [pickerOpen, setPickerOpen] = useState(false)
+  /** Set after a registration change, whose effect waits for a restart. */
+  const [restartNeeded, setRestartNeeded] = useState(false)
   /** Self-test results per provider id: running, then ok or failed. */
   const [tests, setTests] = useState({})
   const [draft, setDraft] = useState(emptyDraft)
@@ -514,18 +516,20 @@ function WebSearchPageInner(props) {
               ? jsx('button', {
                 className: 'dws-button',
                 disabled: busy,
-                onClick: () => run(() => call('/providers', { action: 'unregister' })),
+                onClick: () => run(() => call('/providers', { action: 'unregister' }))
+                  .then(() => setRestartNeeded(true)),
                 children: t('page.unregister'),
               })
               : jsx('button', {
                 className: 'dws-button',
                 disabled: busy,
-                onClick: () => run(() => call('/providers', { action: 'select' })),
+                onClick: () => run(() => call('/providers', { action: 'select' }))
+                  .then(() => setRestartNeeded(true)),
                 children: t('page.register'),
               }),
           ] }),
           jsx('p', { style: styles.helpText, children: t('help.registration') }),
-          jsx('p', { style: styles.helpStrong, children: t('help.restart') }),
+          restartNeeded && jsx('p', { style: styles.restartWarning, children: t('help.restart') }),
         ],
       }) }),
     ] }),
@@ -727,6 +731,7 @@ const styles = {
   heading: { margin: 0, fontSize: 20, fontWeight: 600 },
   helpText: { fontSize: 11, lineHeight: 1.45, margin: 0, opacity: 0.7 },
   helpStrong: { fontSize: 11, fontWeight: 700, lineHeight: 1.45, margin: 0 },
+  restartWarning: { color: '#f85149', fontSize: 11, fontWeight: 700, lineHeight: 1.45, margin: 0 },
   helpTextBright: { fontSize: 11, lineHeight: 1.45, margin: 0, opacity: 1 },
   statusRow: { alignItems: 'center', display: 'flex', flexWrap: 'wrap', gap: 8 },
   hint: { margin: 0, opacity: 0.7, fontSize: 13 },
