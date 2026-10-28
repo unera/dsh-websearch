@@ -91,7 +91,7 @@ async function call(path, body) {
   return payload
 }
 
-const emptyDraft = { type: '', desc: '', apiKey: '', enabled: true }
+const emptyDraft = { type: '', desc: '', model: '', apiKey: '', enabled: true }
 
 /** The language the host is showing, read off the dictionary it handed us. */
 const uiLanguage = t => {
@@ -155,6 +155,7 @@ export function WebSearchPage(props) {
     setDraft({
       type: provider?.type ?? 'exa',
       desc: provider?.desc ?? '',
+      model: provider?.model ?? '',
       apiKey: '',
       enabled: provider?.enabled !== false,
     })
@@ -174,6 +175,7 @@ export function WebSearchPage(props) {
   const submit = () => {
     const body = {
       desc: draft.desc,
+      model: draft.model.trim(),
       apiKey: draft.apiKey.trim(),
       enabled: draft.enabled === true,
     }
@@ -273,7 +275,8 @@ export function WebSearchPage(props) {
           onChange: e => setDraft({ ...draft, apiKey: e.target.value }),
         }),
       ] }),
-      // Row 2: the switch and what submits or drops the draft.
+      // Row 2: the switch, the model only where a model answers the search, and
+      // what submits or drops the draft.
       showingForm && jsxs('div', { className: 'dws-actions', children: [
         jsxs('label', { style: styles.enabled, title: canEnable ? '' : t('form.needKey'), children: [
           jsx('input', {
@@ -282,6 +285,12 @@ export function WebSearchPage(props) {
           }),
           ` ${t('form.enabled')}`,
         ] }),
+        formType === 'openai' && jsx('input', {
+          className: 'dws-field dws-model', type: 'text', value: draft.model,
+          placeholder: t('form.modelHint'), spellCheck: false, autoComplete: 'off', disabled: busy,
+          title: t('form.model'),
+          onChange: e => setDraft({ ...draft, model: e.target.value }),
+        }),
         jsx('button', {
           className: 'dws-button', disabled: !canSubmit, onClick: submit,
           children: editing ? t('form.save') : t('form.add'),

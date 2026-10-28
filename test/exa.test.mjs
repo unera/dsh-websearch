@@ -504,3 +504,15 @@ test('OpenAI provider forces the hosted web_search tool', async () => {
   assert.deepEqual(body.include, ['web_search_call.action.sources'])
   assert.match(body.input, /курс доллара/)
 })
+
+test('stores a provider model through add and save', async () => {
+  const { createProviderHandler } = await import('../index.mjs')
+  const settings = fakeSettings([])
+  const handler = createProviderHandler(settings)
+
+  await callHandler(handler, { body: { action: 'add', draft: { type: 'openai', apiKey: 'sk-1', model: 'gpt-5.5' } } })
+  assert.equal(settings.state.providers[0].model, 'gpt-5.5')
+
+  await callHandler(handler, { body: { action: 'save', index: 0, draft: { desc: '', model: 'gpt-4.1', enabled: true } } })
+  assert.equal(settings.state.providers[0].model, 'gpt-4.1')
+})

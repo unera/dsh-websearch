@@ -34,6 +34,8 @@ const ProviderConfigSchema = z.object({
   id: z.string().default('h-new00').hidden().disabled(),
   type: z.string().default('exa').hidden(),
   desc: z.string().default(''),
+  /** Model a provider answers with; only model-backed search (OpenAI) reads it. */
+  model: z.string().default(''),
   apiKey: z.string().role('secret').default(''),
   credentialRef: z.string().role('credential-ref').default('').hidden(),
   enabled: z.boolean().default(true),
@@ -744,6 +746,7 @@ function publicProvider(provider, index) {
     id: provider.id ?? '',
     type: provider.type ?? 'exa',
     desc: provider.desc ?? '',
+    model: provider.model ?? '',
     enabled: provider.enabled !== false,
     keySet: String(provider.apiKey ?? '').trim() !== '',
     stats: statsOf(provider.id),
@@ -840,6 +843,7 @@ export function createProviderHandler(settings) {
           id,
           type,
           desc: String(draft.desc ?? '').trim(),
+          model: String(draft.model ?? '').trim(),
           apiKey,
           credentialRef: makeCredentialRef(type, id),
           enabled: draft.enabled !== false,
@@ -847,7 +851,12 @@ export function createProviderHandler(settings) {
       } else if (action === 'save') {
         const index = indexOf(providers, body.index)
         const draft = body.draft ?? {}
-        const next = { ...providers[index], desc: String(draft.desc ?? '').trim(), enabled: draft.enabled !== false }
+        const next = {
+          ...providers[index],
+          desc: String(draft.desc ?? '').trim(),
+          model: String(draft.model ?? '').trim(),
+          enabled: draft.enabled !== false,
+        }
         const apiKey = String(draft.apiKey ?? '').trim()
         // An empty key field means "keep the stored one", not "erase it".
         if (apiKey !== '') next.apiKey = apiKey

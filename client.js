@@ -50,6 +50,8 @@ var en = {
   "form.chooseHint": "Choose a web search provider.",
   "form.desc": "Description",
   "form.descPlaceholder": "Description (optional)",
+  "form.model": "Model",
+  "form.modelHint": "Model name, for example gpt-5.5",
   "form.secret": "Secret",
   "form.secretNew": "API key (required)",
   "form.secretStored": "Key stored \u2014 leave blank to keep it",
@@ -90,6 +92,8 @@ var ru = {
   "form.chooseHint": "\u0412\u044B\u0431\u0435\u0440\u0438\u0442\u0435 \u043F\u0440\u043E\u0432\u0430\u0439\u0434\u0435\u0440\u0430 \u043F\u043E\u0438\u0441\u043A\u0430 \u0432 \u0438\u043D\u0442\u0435\u0440\u043D\u0435\u0442\u0435.",
   "form.desc": "\u041E\u043F\u0438\u0441\u0430\u043D\u0438\u0435",
   "form.descPlaceholder": "\u041E\u043F\u0438\u0441\u0430\u043D\u0438\u0435 (\u043D\u0435\u043E\u0431\u044F\u0437\u0430\u0442\u0435\u043B\u044C\u043D\u043E)",
+  "form.model": "\u041C\u043E\u0434\u0435\u043B\u044C",
+  "form.modelHint": "\u0418\u043C\u044F \u043C\u043E\u0434\u0435\u043B\u0438, \u043D\u0430\u043F\u0440\u0438\u043C\u0435\u0440 gpt-5.5",
   "form.secret": "\u0421\u0435\u043A\u0440\u0435\u0442",
   "form.secretNew": "API-\u043A\u043B\u044E\u0447 (\u043E\u0431\u044F\u0437\u0430\u0442\u0435\u043B\u044C\u043D\u043E)",
   "form.secretStored": "\u041A\u043B\u044E\u0447 \u0441\u043E\u0445\u0440\u0430\u043D\u0451\u043D \u2014 \u043E\u0441\u0442\u0430\u0432\u044C\u0442\u0435 \u043F\u0443\u0441\u0442\u044B\u043C, \u0447\u0442\u043E\u0431\u044B \u0441\u043E\u0445\u0440\u0430\u043D\u0438\u0442\u044C",
@@ -130,6 +134,8 @@ var zh = {
   "form.chooseHint": "\u8BF7\u9009\u62E9\u7F51\u7EDC\u641C\u7D22\u7684\u63D0\u4F9B\u65B9\u3002",
   "form.desc": "\u63CF\u8FF0",
   "form.descPlaceholder": "\u63CF\u8FF0\uFF08\u53EF\u9009\uFF09",
+  "form.model": "\u6A21\u578B",
+  "form.modelHint": "\u6A21\u578B\u540D\u79F0\uFF0C\u4F8B\u5982 gpt-5.5",
   "form.secret": "\u5BC6\u94A5",
   "form.secretNew": "API \u5BC6\u94A5\uFF08\u5FC5\u586B\uFF09",
   "form.secretStored": "\u5BC6\u94A5\u5DF2\u4FDD\u5B58 \u2014 \u7559\u7A7A\u5219\u4FDD\u6301\u4E0D\u53D8",
@@ -226,7 +232,7 @@ async function call(path, body) {
   if (!response.ok) throw new Error(payload?.error ?? `${response.status} ${response.statusText}`);
   return payload;
 }
-var emptyDraft = { type: "", desc: "", apiKey: "", enabled: true };
+var emptyDraft = { type: "", desc: "", model: "", apiKey: "", enabled: true };
 var uiLanguage = (t) => {
   const title = t("nav.title");
   if (title === "\u0412\u0435\u0431-\u043F\u043E\u0438\u0441\u043A") return "ru";
@@ -281,6 +287,7 @@ function WebSearchPage(props) {
     setDraft({
       type: provider?.type ?? "exa",
       desc: provider?.desc ?? "",
+      model: provider?.model ?? "",
       apiKey: "",
       enabled: provider?.enabled !== false
     });
@@ -297,6 +304,7 @@ function WebSearchPage(props) {
   const submit = () => {
     const body = {
       desc: draft.desc,
+      model: draft.model.trim(),
       apiKey: draft.apiKey.trim(),
       enabled: draft.enabled === true
     };
@@ -388,7 +396,8 @@ function WebSearchPage(props) {
           onChange: (e) => setDraft({ ...draft, apiKey: e.target.value })
         })
       ] }),
-      // Row 2: the switch and what submits or drops the draft.
+      // Row 2: the switch, the model only where a model answers the search, and
+      // what submits or drops the draft.
       showingForm && (0, import_jsx_runtime.jsxs)("div", { className: "dws-actions", children: [
         (0, import_jsx_runtime.jsxs)("label", { style: styles.enabled, title: canEnable ? "" : t("form.needKey"), children: [
           (0, import_jsx_runtime.jsx)("input", {
@@ -399,6 +408,17 @@ function WebSearchPage(props) {
           }),
           ` ${t("form.enabled")}`
         ] }),
+        formType === "openai" && (0, import_jsx_runtime.jsx)("input", {
+          className: "dws-field dws-model",
+          type: "text",
+          value: draft.model,
+          placeholder: t("form.modelHint"),
+          spellCheck: false,
+          autoComplete: "off",
+          disabled: busy,
+          title: t("form.model"),
+          onChange: (e) => setDraft({ ...draft, model: e.target.value })
+        }),
         (0, import_jsx_runtime.jsx)("button", {
           className: "dws-button",
           disabled: !canSubmit,
