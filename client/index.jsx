@@ -19,6 +19,19 @@ const DEEPSEEK_ICON = 'data:image/svg+xml;utf8,' + encodeURIComponent(
 const ICONS = { exa: EXA_ICON, deepseek: DEEPSEEK_ICON }
 
 const typeLabel = type => TYPE_LABELS[type] ?? String(type ?? '')
+
+/**
+ * The dictionary key for what a provider can do. Search and page retrieval are
+ * separate capabilities, so a search-only type says so on its row.
+ * @param capabilities - Capabilities reported by the host.
+ * @returns The locale key naming them.
+ */
+const capsKey = capabilities => {
+  const search = capabilities?.search !== false
+  const fetch = capabilities?.fetch === true
+  if (search && fetch) return 'caps.searchFetch'
+  return search ? 'caps.searchOnly' : 'caps.fetchOnly'
+}
 const iconOf = type => ICONS[type ?? 'exa'] ?? null
 
 /*
@@ -326,6 +339,7 @@ export function WebSearchPage(props) {
               style: { flex: '0 0 auto', opacity: on ? 1 : 0.35 },
             }),
             provider.desc !== '' && jsx('span', { style: styles.desc, children: provider.desc }),
+            jsx('span', { style: styles.caps, children: t(capsKey(provider.capabilities)) }),
             jsxs('span', { style: styles.actions, children: [
               jsx('button', { className: 'dws-icon', disabled: busy, title: t('list.delete'), onClick: act({ action: 'delete', index }), children: '×' }),
               jsx('button', { className: 'dws-icon', disabled: busy || index === 0, title: t('list.up'), onClick: act({ action: 'move', index, delta: -1 }), children: '↑' }),
@@ -382,6 +396,7 @@ const styles = {
   slash: { opacity: 0.5 },
   activeLabel: { fontSize: 12, opacity: 0.75 },
   muted: { opacity: 0.6 },
+  caps: { flex: '0 0 auto', fontSize: 11, opacity: 0.55, whiteSpace: 'nowrap' },
   row: { alignItems: 'center', display: 'flex', flexWrap: 'wrap', gap: 8, minWidth: 0 },
   enabled: { whiteSpace: 'nowrap', fontSize: 13 },
   error: { margin: 0, color: '#f66' },

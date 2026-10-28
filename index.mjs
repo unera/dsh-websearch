@@ -608,6 +608,18 @@ export const SEARCH_PROVIDER_ID = 'dsh-websearch'
  * and `/providers` refuses anything else instead of storing a type it cannot run.
  */
 export const PROVIDER_TYPES = Object.freeze(['exa', 'deepseek', 'openai'])
+
+/**
+ * What each provider type can do. Search and page retrieval are separate
+ * capabilities here, because a type may have only one of them — OpenAI searches
+ * but publishes no page-retrieval endpoint, and a reader-only type would be the
+ * mirror image.
+ */
+export const PROVIDER_CAPABILITIES = Object.freeze({
+  exa: Object.freeze({ search: true, fetch: true }),
+  deepseek: Object.freeze({ search: true, fetch: true }),
+  openai: Object.freeze({ search: true, fetch: false }),
+})
 /** The `web` seam's namespace, whose `searchProvider` field selects the active provider. */
 export const WEB_NAMESPACE = 'web'
 
@@ -749,6 +761,7 @@ function publicProvider(provider, index) {
     model: provider.model ?? '',
     enabled: provider.enabled !== false,
     keySet: String(provider.apiKey ?? '').trim() !== '',
+    capabilities: PROVIDER_CAPABILITIES[provider.type ?? 'exa'] ?? { search: true, fetch: true },
     stats: statsOf(provider.id),
   }
 }

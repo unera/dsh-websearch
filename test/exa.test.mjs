@@ -516,3 +516,14 @@ test('stores a provider model through add and save', async () => {
   await callHandler(handler, { body: { action: 'save', index: 0, draft: { desc: '', model: 'gpt-4.1', enabled: true } } })
   assert.equal(settings.state.providers[0].model, 'gpt-4.1')
 })
+
+test('state reports what each provider can do', async () => {
+  const { createProviderHandler } = await import('../index.mjs')
+  const settings = fakeSettings([
+    { id: 'h-caps1', type: 'openai', apiKey: 'k', enabled: true },
+    { id: 'h-caps2', type: 'exa', apiKey: 'k', enabled: true },
+  ])
+  const response = await callHandler(createProviderHandler(settings), { method: 'GET', url: '/__ws/state' })
+  assert.deepEqual(response.payload.providers[0].capabilities, { search: true, fetch: false })
+  assert.deepEqual(response.payload.providers[1].capabilities, { search: true, fetch: true })
+})

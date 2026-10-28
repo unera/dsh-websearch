@@ -67,6 +67,9 @@ var en = {
   "list.down": "Move down",
   "list.delete": "Delete",
   "list.reset": "reset",
+  "caps.searchOnly": "search only",
+  "caps.searchFetch": "search and fetch",
+  "caps.fetchOnly": "fetch only",
   "list.counters": "searches and fetches: ",
   "list.and": " and ",
   "list.lastSearch": "last search: ",
@@ -109,6 +112,9 @@ var ru = {
   "list.down": "\u041D\u0438\u0436\u0435",
   "list.delete": "\u0423\u0434\u0430\u043B\u0438\u0442\u044C",
   "list.reset": "\u0441\u0431\u0440\u043E\u0441\u0438\u0442\u044C",
+  "caps.searchOnly": "\u0442\u043E\u043B\u044C\u043A\u043E \u043F\u043E\u0438\u0441\u043A",
+  "caps.searchFetch": "\u043F\u043E\u0438\u0441\u043A \u0438 \u0441\u043A\u0430\u0447\u0438\u0432\u0430\u043D\u0438\u0435",
+  "caps.fetchOnly": "\u0442\u043E\u043B\u044C\u043A\u043E \u0441\u043A\u0430\u0447\u0438\u0432\u0430\u043D\u0438\u0435",
   "list.counters": "\u0437\u0430\u043F\u0440\u043E\u0441\u043E\u0432 \u0438 \u0432\u044B\u0431\u043E\u0440\u043E\u043A: ",
   "list.and": " \u0438 ",
   "list.lastSearch": "\u043F\u043E\u0441\u043B\u0435\u0434\u043D\u0438\u0439 \u043F\u043E\u0438\u0441\u043A: ",
@@ -151,6 +157,9 @@ var zh = {
   "list.down": "\u4E0B\u79FB",
   "list.delete": "\u5220\u9664",
   "list.reset": "\u91CD\u7F6E",
+  "caps.searchOnly": "\u4EC5\u641C\u7D22",
+  "caps.searchFetch": "\u641C\u7D22\u4E0E\u6293\u53D6",
+  "caps.fetchOnly": "\u4EC5\u6293\u53D6",
   "list.counters": "\u641C\u7D22\u4E0E\u6293\u53D6\uFF1A",
   "list.and": " \u548C ",
   "list.lastSearch": "\u4E0A\u6B21\u641C\u7D22\uFF1A",
@@ -175,6 +184,12 @@ var DEEPSEEK_ICON = "data:image/svg+xml;utf8," + encodeURIComponent(
 );
 var ICONS = { exa: EXA_ICON, deepseek: DEEPSEEK_ICON };
 var typeLabel = (type) => TYPE_LABELS[type] ?? String(type ?? "");
+var capsKey = (capabilities) => {
+  const search = capabilities?.search !== false;
+  const fetch2 = capabilities?.fetch === true;
+  if (search && fetch2) return "caps.searchFetch";
+  return search ? "caps.searchOnly" : "caps.fetchOnly";
+};
 var iconOf = (type) => ICONS[type ?? "exa"] ?? null;
 var CSS = `
 .dws-field {
@@ -461,6 +476,7 @@ function WebSearchPage(props) {
               style: { flex: "0 0 auto", opacity: on ? 1 : 0.35 }
             }),
             provider.desc !== "" && (0, import_jsx_runtime.jsx)("span", { style: styles.desc, children: provider.desc }),
+            (0, import_jsx_runtime.jsx)("span", { style: styles.caps, children: t(capsKey(provider.capabilities)) }),
             (0, import_jsx_runtime.jsxs)("span", { style: styles.actions, children: [
               (0, import_jsx_runtime.jsx)("button", { className: "dws-icon", disabled: busy, title: t("list.delete"), onClick: act({ action: "delete", index }), children: "\xD7" }),
               (0, import_jsx_runtime.jsx)("button", { className: "dws-icon", disabled: busy || index === 0, title: t("list.up"), onClick: act({ action: "move", index, delta: -1 }), children: "\u2191" }),
@@ -518,6 +534,7 @@ var styles = {
   slash: { opacity: 0.5 },
   activeLabel: { fontSize: 12, opacity: 0.75 },
   muted: { opacity: 0.6 },
+  caps: { flex: "0 0 auto", fontSize: 11, opacity: 0.55, whiteSpace: "nowrap" },
   row: { alignItems: "center", display: "flex", flexWrap: "wrap", gap: 8, minWidth: 0 },
   enabled: { whiteSpace: "nowrap", fontSize: 13 },
   error: { margin: 0, color: "#f66" }
