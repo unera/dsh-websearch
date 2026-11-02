@@ -771,7 +771,7 @@ export function apply(ctx) {
   try {
     ctx.effect(() => {
       try {
-        return ctx.locale.addLanguage('ru')
+        return ctx.locale.addLanguage({ id: 'ru', label: 'Русский', fallback: 'en' })
       } catch (error) {
         if (!/already/i.test(String(error?.message ?? error))) throw error
         return () => {}
