@@ -5,7 +5,9 @@ import { DICTIONARIES, NS, TYPE_LABELS, TYPE_OPTIONS } from './locales.js'
 const SECTION_ID = 'websearch'
 // Behind the host's authenticated /api channel.
 const API = '/api/websearch'
-const ENDPOINTS = { '': '/action' }
+// Every write goes to one action route; the older per-resource paths are kept
+// as aliases so a cached page cannot 404 against a new host.
+const ENDPOINTS = { '': '/action', '/providers': '/action', '/test': '/action', '/select': '/action' }
 
 /* Exa logomark, inlined so the page never depends on an external image fetch. */
 const EXA_ICON = 'data:image/svg+xml;utf8,' + encodeURIComponent(

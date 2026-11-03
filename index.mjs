@@ -1939,6 +1939,9 @@ export function apply(ctx, config = {}) {
       const disposers = [
         connection.fetch.register({ path: '/api/websearch/state', methods: ['GET'], requestBody: 'buffered', fetch: run }),
         connection.fetch.register({ path: '/api/websearch/action', methods: ['POST'], requestBody: 'buffered', fetch: run }),
+        // Aliases for pages cached before the move: they all carried their intent in
+        // the body, so one handler serves every one of these paths.
+        connection.fetch.register({ path: '/api/websearch/providers', methods: ['POST'], requestBody: 'buffered', fetch: run }),
       ]
       return () => { for (const dispose of disposers) { try { dispose?.() } catch { /* already gone */ } } }
     })
