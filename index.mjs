@@ -1905,14 +1905,42 @@ export function apply(ctx, config = {}) {
       }
     })
   const fallbackConfigs = normalizeConfigs(config.providers)
-  ctx.inject(['settings', 'webServer'], scoped => {
+  // The provider API rides the host's authenticated /api channel. A bare prefix on
+  // the web server answers the whole internet, and this page edits API keys.
+  ctx.inject(['settings', 'connection'], scoped => {
     const settings = scoped.settings ?? scoped.get?.('settings')
-    const server = scoped.webServer ?? scoped.get?.('webServer')
-    if (typeof settings?.update !== 'function' || typeof server?.register !== 'function') return undefined
+    const connection = scoped.connection ?? scoped.get?.('connection')
+    if (typeof settings?.update !== 'function' || typeof connection?.fetch?.register !== 'function') return undefined
     const handler = createProviderHandler(settings, () => shared.credentials)
+    // The handler already speaks node-style (req, res) and parses its own paths, so
+    // it is reused as is behind a thin adapter rather than rewritten.
+    const run = async request => {
+      const text = request.method === 'POST' ? await request.text() : ''
+      const url = new URL(request.url)
+      const headers = Object.fromEntries(request.headers.entries())
+      const req = {
+        method: request.method,
+        url: `${ROUTE_PREFIX}${url.pathname.replace('/api/websearch', '') || ''}`,
+        headers,
+        async *[Symbol.asyncIterator]() {
+          if (text !== '') yield Buffer.from(text, 'utf8')
+        },
+      }
+      let status = 200
+      let payload = ''
+      const res = {
+        writeHead: code => { status = code; return res },
+        end: chunk => { payload = typeof chunk === 'string' ? chunk : String(chunk ?? '') },
+      }
+      await handler(req, res)
+      return new Response(payload, { status, headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' } })
+    }
     return scoped.effect(() => {
-      const unregister = server.register({ kind: 'prefix', path: ROUTE_PREFIX, handler })
-      return () => { try { unregister?.() } catch { /* already gone */ } }
+      const disposers = [
+        connection.fetch.register({ path: '/api/websearch/state', methods: ['GET'], requestBody: 'buffered', fetch: run }),
+        connection.fetch.register({ path: '/api/websearch/action', methods: ['POST'], requestBody: 'buffered', fetch: run }),
+      ]
+      return () => { for (const dispose of disposers) { try { dispose?.() } catch { /* already gone */ } } }
     })
   })
   ctx.inject(['web'], scoped => {

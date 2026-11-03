@@ -3,7 +3,9 @@ import { jsx, jsxs } from 'react/jsx-runtime'
 import { DICTIONARIES, NS, TYPE_LABELS, TYPE_OPTIONS } from './locales.js'
 
 const SECTION_ID = 'websearch'
-const API = '/__ws'
+// Behind the host's authenticated /api channel.
+const API = '/api/websearch'
+const ENDPOINTS = { '': '/action' }
 
 /* Exa logomark, inlined so the page never depends on an external image fetch. */
 const EXA_ICON = 'data:image/svg+xml;utf8,' + encodeURIComponent(
@@ -229,9 +231,10 @@ function mountStyle() {
 mountStyle()
 
 async function call(path, body, signal) {
-  const response = await fetch(`${API}${path}`, body === undefined
-    ? { cache: 'no-store', ...(signal === undefined ? {} : { signal }) }
-    : { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body), ...(signal === undefined ? {} : { signal }) })
+  const target = ENDPOINTS[path] ?? path
+  const response = await fetch(`${API}${target}`, body === undefined
+    ? { cache: 'no-store', credentials: 'same-origin', ...(signal === undefined ? {} : { signal }) }
+    : { method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body), ...(signal === undefined ? {} : { signal }) })
   const text = await response.text()
   const payload = text === '' ? null : JSON.parse(text)
   if (!response.ok) {
