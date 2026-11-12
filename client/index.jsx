@@ -800,11 +800,48 @@ export function apply(ctx) {
   ctx.slots.inject('settings.section', () => ctx.slots.register({
     name: 'settings.section',
     id: SECTION_ID,
-    order: 35,
+    // 38, not 35: dsh-nodes asks for 35 too, and equal orders are separated only by
+    // registration luck
+    order: 38,
     locale: NS,
     label: () => t('nav.title'),
   }, WebSearchPage))
+
+  ctx.slots.inject('settings.section.icon', () => ctx.slots.register({
+    name: 'settings.section.icon',
+    id: SECTION_ID,
+    order: 38,
+    label: () => t('nav.title'),
+  }, WebSearchIcon))
 }
+
+/**
+ * Settings navigation icon.
+ *
+ * 0.2.2 renders these from their own slot (`settings.section.icon`), addressed by the
+ * section id; without one the shell keeps its default glyph, so our sections looked like
+ * the ones nobody finished. Inline and in `currentColor` — an asset would need rebuilding
+ * for every colour scheme.
+ */
+function WebSearchIcon(props) {
+  const size = typeof props?.size === 'number' && props.size > 0 ? props.size : 16
+  return jsx('svg', {
+    width: size,
+    height: size,
+    viewBox: '0 0 16 16',
+    fill: 'none',
+    stroke: 'currentColor',
+    strokeWidth: 1.4,
+    strokeLinecap: 'round',
+    strokeLinejoin: 'round',
+    'aria-hidden': 'true',
+    children: [
+      jsx('circle', { cx: 8, cy: 8, r: 6 }),
+      jsx('path', { d: 'M2 8h12M8 2c2 2.2 2 9.8 0 12M8 2c-2 2.2-2 9.8 0 12' }),
+    ],
+  })
+}
+
 
 /**
  * The settings section: the page itself wrapped in a boundary, so a failure shows

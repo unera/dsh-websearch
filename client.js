@@ -905,10 +905,36 @@ function apply(ctx) {
   ctx.slots.inject("settings.section", () => ctx.slots.register({
     name: "settings.section",
     id: SECTION_ID,
-    order: 35,
+    // 38, not 35: dsh-nodes asks for 35 too, and equal orders are separated only by
+    // registration luck
+    order: 38,
     locale: NS,
     label: () => t("nav.title")
   }, WebSearchPage));
+  ctx.slots.inject("settings.section.icon", () => ctx.slots.register({
+    name: "settings.section.icon",
+    id: SECTION_ID,
+    order: 38,
+    label: () => t("nav.title")
+  }, WebSearchIcon));
+}
+function WebSearchIcon(props) {
+  const size = typeof props?.size === "number" && props.size > 0 ? props.size : 16;
+  return (0, import_jsx_runtime.jsx)("svg", {
+    width: size,
+    height: size,
+    viewBox: "0 0 16 16",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: 1.4,
+    strokeLinecap: "round",
+    strokeLinejoin: "round",
+    "aria-hidden": "true",
+    children: [
+      (0, import_jsx_runtime.jsx)("circle", { cx: 8, cy: 8, r: 6 }),
+      (0, import_jsx_runtime.jsx)("path", { d: "M2 8h12M8 2c2 2.2 2 9.8 0 12M8 2c-2 2.2-2 9.8 0 12" })
+    ]
+  });
 }
 function WebSearchPage(props) {
   return (0, import_jsx_runtime.jsx)(SectionBoundary, { children: (0, import_jsx_runtime.jsx)(WebSearchPageInner, props) });
